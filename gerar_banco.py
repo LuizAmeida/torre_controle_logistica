@@ -1,9 +1,13 @@
 import sqlite3
 
+# Conexão com o banco de dados da Torre de Controle
 conexao = sqlite3.connect("torre_controle_final.db")
 cursor = conexao.cursor()
+
+# Habilitando o suporte a chaves estrangeiras no SQLite
 cursor.execute("PRAGMA foreign_keys = ON;")
 
+# --- MODIFICAÇÃO/CONSTRUÇÃO: Criação da Tabela d_transportadoras ---
 cursor.execute("""
     CREATE TABLE IF NOT EXISTS d_transportadoras (
         id_transportadora INTEGER PRIMARY KEY,
@@ -14,6 +18,7 @@ cursor.execute("""
     );
 """)
 
+# --- MODIFICAÇÃO/CONSTRUÇÃO: Criação da Tabela d_clientes ---
 cursor.execute("""
     CREATE TABLE IF NOT EXISTS d_clientes (
         id_cliente INTEGER PRIMARY KEY,
@@ -24,6 +29,7 @@ cursor.execute("""
     );
 """)
 
+# --- MODIFICAÇÃO/CONSTRUÇÃO: Criação da Tabela f_entregas (15 colunas no total) ---
 cursor.execute("""
     CREATE TABLE IF NOT EXISTS f_entregas (
         id_entrega INTEGER PRIMARY KEY,
@@ -45,10 +51,12 @@ cursor.execute("""
     );
 """)
 
+# Limpando registros antigos para evitar duplicações em reexecuções
 cursor.execute("DELETE FROM f_entregas;")
 cursor.execute("DELETE FROM d_transportadoras;")
 cursor.execute("DELETE FROM d_clientes;")
 
+# --- POPULAÇÃO DE DADOS: Dimensão Transportadoras ---
 dados_transportadoras = [
     (1, 'Alfa Transportes Express Ltda', '11.111.111/0001-11', 'Fracionado', 'E-commerce'),
     (2, 'Logística Beta Pesados S/A', '22.222.222/0001-22', 'Lotação / TL', 'Carga Geral'),
@@ -58,6 +66,7 @@ dados_transportadoras = [
 ]
 cursor.executemany("INSERT INTO d_transportadoras VALUES (?, ?, ?, ?, ?);", dados_transportadoras)
 
+# --- POPULAÇÃO DE DADOS: Dimensão Clientes (Mapeando explicitamente todas as regiões do país) ---
 dados_clientes = [
     (101, 'Varejo São Paulo Hub', 'São Paulo', 'SP', 'Sudeste'),
     (102, 'Distribuidora Rio Centro', 'Rio de Janeiro', 'RJ', 'Sudeste'),
@@ -70,7 +79,9 @@ dados_clientes = [
 ]
 cursor.executemany("INSERT INTO d_clientes VALUES (?, ?, ?, ?, ?);", dados_clientes)
 
+# --- POPULAÇÃO DE DADOS: Fato Entregas (Contendo volumetria expandida para Centro-Oeste e Norte) ---
 dados_entregas = [
+    # E-commerce (Sudeste, Nordeste, Sul, Centro-Oeste)
     (1, 5001, 1, 101, 'E-commerce', '2026-06-01', '2026-06-04', '2026-06-04', 1500.00, 45.50, 120.00, 120.00, 'Entregue No Prazo', 'Nenhum Operacional'),
     (2, 5002, 1, 102, 'E-commerce', '2026-06-01', '2026-06-05', '2026-06-08', 3400.00, 120.00, 250.00, 390.00, 'Atrasado', 'Cobrança Indevida Adicional / Frete Estourado'),
     (3, 5003, 5, 101, 'E-commerce', '2026-06-02', '2026-06-03', '2026-06-03', 450.00, 5.00, 35.00, 35.00, 'Entregue No Prazo', 'Nenhum Operacional'),
@@ -79,6 +90,8 @@ dados_entregas = [
     (6, 5006, 1, 104, 'E-commerce', '2026-06-04', '2026-06-09', '2026-06-09', 2300.00, 80.00, 190.00, 190.00, 'Entregue No Prazo', 'Nenhum Operacional'),
     (7, 5007, 5, 101, 'E-commerce', '2026-06-05', '2026-06-06', '2026-06-09', 1100.00, 22.00, 45.00, 45.00, 'Atrasado', 'Destinatário Ausente / Necessidade de Reentrega'),
     (8, 5008, 1, 105, 'E-commerce', '2026-06-05', '2026-06-12', None, 6700.00, 310.00, 550.00, 550.00, 'Em Trânsito', 'Carga em Fluxo Normal'),
+    
+    # Carga Geral
     (9, 6001, 2, 101, 'Carga Geral', '2026-06-01', '2026-06-03', '2026-06-03', 45000.00, 12000.00, 1800.00, 1800.00, 'Entregue No Prazo', 'Nenhum Operacional'),
     (10, 6002, 2, 102, 'Carga Geral', '2026-06-01', '2026-06-03', '2026-06-06', 32000.00, 8500.00, 1400.00, 1950.00, 'Atrasado', 'Estadia de Veículo / Demora na Descarga do Cliente'),
     (11, 6003, 2, 103, 'Carga Geral', '2026-06-02', '2026-06-08', '2026-06-07', 89000.00, 24000.00, 4200.00, 4200.00, 'Entregue No Prazo', 'Nenhum Operacional'),
@@ -87,6 +100,8 @@ dados_entregas = [
     (14, 6006, 2, 101, 'Carga Geral', '2026-06-10', '2026-06-12', '2026-06-15', 18500.00, 3900.00, 780.00, 1150.00, 'Atrasado', 'Erro Cadastral de Cubagem / Cobrança Divergente'),
     (15, 6007, 2, 103, 'Carga Geral', '2026-06-12', '2026-06-18', None, 95000.00, 26000.00, 4500.00, 4500.00, 'Em Trânsito', 'Carga em Fluxo Normal'),
     (16, 6008, 2, 102, 'Carga Geral', '2026-06-15', '2026-06-17', '2026-06-17', 14000.00, 2100.00, 490.00, 490.00, 'Entregue No Prazo', 'Nenhum Operacional'),
+    
+    # Farmacêutico (Abrangendo a região Norte - cliente 106)
     (17, 7001, 3, 107, 'Farmacêutico', '2026-06-01', '2026-06-02', '2026-06-02', 120000.00, 450.00, 950.00, 950.00, 'Entregue No Prazo', 'Nenhum Operacional'),
     (18, 7002, 3, 103, 'Farmacêutico', '2026-06-01', '2026-06-05', '2026-06-09', 340000.00, 1100.00, 2800.00, 3400.00, 'Atrasado', 'Perda de Temperatura / Excursão Térmica na Carga'),
     (19, 7003, 3, 106, 'Farmacêutico', '2026-06-02', '2026-06-09', '2026-06-08', 450000.00, 1800.00, 6200.00, 6200.00, 'Entregue No Prazo', 'Nenhum Operacional'),
@@ -95,6 +110,8 @@ dados_entregas = [
     (22, 7006, 3, 101, 'Farmacêutico', '2026-06-10', '2026-06-11', '2026-06-11', 115000.00, 390.00, 720.00, 720.00, 'Entregue No Prazo', 'Nenhum Operacional'),
     (23, 7007, 3, 106, 'Farmacêutico', '2026-06-15', '2026-06-22', None, 210000.00, 920.00, 4800.00, 4800.00, 'Em Trânsito', 'Carga em Fluxo Normal'),
     (24, 7008, 3, 105, 'Farmacêutico', '2026-06-16', '2026-06-20', '2026-06-20', 64000.00, 190.00, 530.00, 530.00, 'Entregue No Prazo', 'Nenhum Operacional'),
+    
+    # Agronegócio (Abrangendo a região Centro-Oeste - cliente 108)
     (25, 8001, 4, 108, 'Agronegócio', '2026-06-01', '2026-06-06', '2026-06-06', 75000.00, 32000.00, 5400.00, 5400.00, 'Entregue No Prazo', 'Nenhum Operacional'),
     (26, 8002, 4, 105, 'Agronegócio', '2026-06-01', '2026-06-05', '2026-06-09', 72000.00, 31500.00, 4800.00, 6100.00, 'Atrasado', 'Excesso de Peso Identificado na Balança Rodoviária'),
     (27, 8003, 4, 108, 'Agronegócio', '2026-06-02', '2026-06-07', '2026-06-07', 78000.00, 33000.00, 5600.00, 5600.00, 'Entregue No Prazo', 'Nenhum Operacional'),
@@ -104,8 +121,12 @@ dados_entregas = [
     (31, 8007, 4, 108, 'Agronegócio', '2026-06-18', '2026-06-23', None, 76000.00, 32100.00, 5400.00, 5400.00, 'Em Trânsito', 'Carga em Fluxo Normal'),
     (32, 8008, 4, 105, 'Agronegócio', '2026-06-19', '2026-06-23', None, 73000.00, 31200.00, 4700.00, 4700.00, 'Em Trânsito', 'Carga em Fluxo Normal')
 ]
+
+# --- CORREÇÃO CRÍTICA: Ajustado para exatamente 14 pontos de interrogação baseados nos dados passados ---
 cursor.executemany("INSERT INTO f_entregas VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);", dados_entregas)
 
+# Confirmando as alterações e encerrando a conexão de forma segura
 conexao.commit()
 conexao.close()
+
 print("🎯 Banco de dados 'torre_controle_final.db' gerado localmente com sucesso!")
