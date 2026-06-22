@@ -1,4 +1,4 @@
-import streamlit as pd
+import streamlit as st
 import pandas as pd
 import sqlite3
 import plotly.express as px
@@ -94,7 +94,7 @@ with col2:
     st.metric(label="Total Frete Cobrado", value=f"R$ {faturamento_frete:,.2f}")
 
 with col3:
-    # Cálculo do OTIF: Entregas No Prazo / Total de Entregas (ignorando as Em Trânsito se necessário, ou considerando o total)
+    # Cálculo do OTIF: Entregas No Prazo / Total de Entregas
     entregas_no_prazo = len(df_filtrado[df_filtrado["status_entrega"] == "Entregue No Prazo"])
     taxa_otif = (entregas_no_prazo / total_entregas * 100) if total_entregas > 0 else 0.0
     st.metric(label="Taxa de OTIF (SLA)", value=f"{taxa_otif:.1f}%")
