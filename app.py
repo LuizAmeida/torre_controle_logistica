@@ -94,13 +94,11 @@ with col2:
     st.metric(label="Total Frete Cobrado", value=f"R$ {faturamento_frete:,.2f}")
 
 with col3:
-    # Cálculo do OTIF: Entregas No Prazo / Total de Entregas
     entregas_no_prazo = len(df_filtrado[df_filtrado["status_entrega"] == "Entregue No Prazo"])
     taxa_otif = (entregas_no_prazo / total_entregas * 100) if total_entregas > 0 else 0.0
     st.metric(label="Taxa de OTIF (SLA)", value=f"{taxa_otif:.1f}%")
 
 with col4:
-    # Cálculo de Estouro de Frete: Onde o cobrado foi maior que o acordado em tabela
     df_filtrado["desvio_frete"] = df_filtrado["custo_frete_cobrado"] - df_filtrado["custo_frete_tabela"]
     prejuizo_frete = df_filtrado[df_filtrado["desvio_frete"] > 0]["desvio_frete"].sum()
     st.metric(label="Prejuízo (Frete Estourado)", value=f"R$ {prejuizo_frete:,.2f}")
@@ -108,12 +106,11 @@ with col4:
 st.markdown("---")
 
 
-# --- CONSTRUÇÃO/MODIFICAÇÃO: Seção Gráfica Gráficos Estratégicos ---
-st.subheader("📈 Análise de Tendências e Volumetria")
+# --- CONSTRUÇÃO/MODIFICAÇÃO: Bloco Gráfico Bloco 1 ---
+st.subheader("📈 Volumetria e Distribuição de SLAs")
 graf1, graf2 = st.columns(2)
 
 with graf1:
-    # Gráfico 1: Evolução de Entregas por Região ao Longo do Tempo (Linhas)
     df_linha = df_filtrado.groupby(['data_emissao', 'regiao']).size().reset_index(name='qtd_entregas')
     df_linha = df_linha.sort_values(by='data_emissao')
     
@@ -129,7 +126,6 @@ with graf1:
     st.plotly_chart(fig_linha, use_container_width=True)
 
 with graf2:
-    # Gráfico 2: Divisão de Status das Entregas (Rosca / Pizza)
     df_pizza = df_filtrado["status_entrega"].value_counts().reset_index()
     df_pizza.columns = ["Status", "Quantidade"]
     
@@ -142,18 +138,74 @@ with graf2:
     )
     st.plotly_chart(fig_pizza, use_container_width=True)
 
+
+# --- CONSTRUÇÃO/MODIFICAÇÃO: Bloco Gráfico Bloco 2 (Novos Gráficos) ---
+st.subheader("🚛 Performance de Parceiros e Auditoria de Custos")
+graf3, graf4 = st.columns(2)
+
+with graf3:
+    # Gráfico 3: Performance de Cumprimento de SLA por Transportadora (Barras Empilhadas)
+    df_transp = df_filtrado.groupby(['nome_transportadora', 'status_entrega']).size().reset_index(name='entregas')
+    fig_barra_transp = px.bar(
+        df_transp,
+        x='nome_transportadora',
+        y='entregas',
+        color='status_entrega',
+        title="Nível de Serviço (SLA) por Transportadora",
+        labels={'nome_transportadora': 'Transportadora', 'entregas': 'Quantidade de Viagens'},
+        barmode='stack'
+    )
+    st.plotly_chart(fig_barra_transp, use_container_width=True)
+
+with graf4:
+    # Gráfico 4: Comparativo Financeiro - Tabela de Frete vs Cobrado real (Barras Lado a Lado)
+    df_custos = df_filtrado.groupby('segmento_operacao')[['custo_frete_tabela', 'custo_frete_cobrado']].sum().reset_index()
+    df_custos_melt = df_custos.melt(id_vars='segmento_operacao', value_vars=['custo_frete_tabela', 'custo_frete_cobrado'],
+                                    var_name='Tipo_Custo', value_name='Valor')
+    df_custos_melt['Tipo_Custo'] = df_custos_melt['Tipo_Custo'].map({'custo_frete_tabela': 'Frete Contratado (Tabela)', 'custo_frete_cobrado': 'Frete Real Cobrado'})
+    
+    fig_comparativo = px.bar(
+        df_custos_melt,
+        x='segmento_operacao',
+        y='Valor',
+        color='Tipo_Custo',
+        barmode='group',
+        title="Auditoria Financeira: Frete Contratado vs Frete Real Cobrado",
+        labels={'segmento_operacao': 'Segmento Operacional', 'Valor': 'Montante em R$'}
+    )
+    st.plotly_chart(fig_comparativo, use_container_width=True)
+
+st.markdown("---")
+
+
+# --- CONSTRUÇÃO/MODIFICAÇÃO: Seção de Inteligência de Negócio e Insights Automatizados ---
+st.subheader("🧠 Diagnóstico Automatizado de Gargalos Logísticos")
+
+# Filtrando causas que não sejam operacionais normais
+df_erros = df_filtrado[df_filtrado["motivo_gargalo"] != "Nenhum Operacional"]
+df_erros = df_erros[df_erros["motivo_gargalo"] != "Carga em Fluxo Normal"]
+
+if not df_erros.empty:
+    causa_raiz = df_erros["motivo_gargalo"].value_counts().idxmax()
+    frequencia_causa = df_erros["motivo_gargalo"].value_counts().max()
+    
+    st.info(f"""
+        **Análise de Causa Raiz:** Identificamos que o principal gargalo operacional sob o filtro selecionado é **"{causa_raiz}"**, ocorrendo em **{frequencia_causa}** incidentes afetando o nível de serviço do período. 
+        *Recomendação Operacional: Revisar o processo de agendamento ou acionar a mesa de operações para mitigar novos atrasos desse tipo.*
+    """)
+else:
+    st.success("🎉 **Eficiência Total:** Nenhum desvio de fluxo ou gargalo operacional foi registrado sob as condições dos filtros atuais.")
+
 st.markdown("---")
 
 
 # --- CONSTRUÇÃO/MODIFICAÇÃO: Tabela de Dados Operacionais e Detalhamento ---
 st.subheader("📋 Detalhamento das Notas Fiscais e Ocorrências")
 
-# Selecionando colunas chave para a exibição ficar limpa
 colunas_exibicao = [
     "numero_nota_fiscal", "nome_transportadora", "nome_cliente", 
     "regiao", "segmento_operacao", "data_emissao", "status_entrega", 
     "valor_nota_fiscal", "custo_frete_cobrado", "motivo_gargalo"
 ]
 
-# Exibindo a tabela formatada
 st.dataframe(df_filtrado[colunas_exibicao], use_container_width=True)
