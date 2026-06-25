@@ -5,6 +5,13 @@ import plotly.express as px
 import os
 from datetime import datetime
 
+# --- FORÇAR APAGAR BANCO ANTIGO COM ERROS DE DIGITAÇÃO ---
+if os.path.exists("torre_controle_final.db"):
+    try:
+        os.remove("torre_controle_final.db")
+    except Exception:
+        pass
+
 # --- AUTOMAÇÃO: O app.py força a execução do fabricante de dados na nuvem ---
 try:
     import gerar_banco
@@ -55,7 +62,7 @@ df_original = carregar_dados()
 # --- Painel de Filtros Cruzados Avançado com Linha Temporal ---
 st.sidebar.header("🎯 Painel de Filtros Cruzados")
 
-# INCLUSÃO: Filtro de Intervalo de Datas Dinâmico
+# Filtro de Intervalo de Datas Dinâmico
 data_minima = df_original["data_emissao"].min().date()
 data_maxima = df_original["data_emissao"].max().date()
 
