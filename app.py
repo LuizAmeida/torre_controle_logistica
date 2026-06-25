@@ -14,6 +14,34 @@ st.set_page_config(
     page_icon="🛸"
 )
 
+# ============================================
+# BLOQUEIA TRADUÇÃO AUTOMÁTICA
+# ============================================
+st.markdown("""
+    <meta name="google" content="notranslate">
+    <meta name="google-translate-custom" content="notranslate">
+    <meta http-equiv="Content-Language" content="pt-BR">
+    <style>
+        .goog-te-banner-frame { display: none !important; }
+        #goog-gt-tt { display: none !important; }
+        .goog-tooltip { display: none !important; }
+        .goog-text-highlight { background: transparent !important; border: none !important; }
+        .goog-te-gadget { display: none !important; }
+        .goog-te-gadget-simple { display: none !important; }
+    </style>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            document.documentElement.lang = 'pt-BR';
+            const meta = document.querySelector('meta[name="google"]');
+            if (meta) meta.remove();
+            const newMeta = document.createElement('meta');
+            newMeta.name = 'google';
+            newMeta.content = 'notranslate';
+            document.head.appendChild(newMeta);
+        });
+    </script>
+""", unsafe_allow_html=True)
+
 st.markdown("<h1 style='text-align: center;'>🚛 Torre de Performance Logística</h1>", unsafe_allow_html=True)
 st.markdown("<p style='text-align: center; color: gray;'>Monitoramento de Frotas Próprias, Transportadoras e Indicadores Operacionais</p>", unsafe_allow_html=True)
 st.markdown("---")
@@ -50,6 +78,27 @@ except Exception as e:
     print(f"❌ Erro ao recriar: {e}")
     st.error(f"❌ Erro ao criar banco: {e}")
     st.stop()
+
+# ============================================
+# FUNÇÃO PARA FORMATAR NÚMEROS
+# ============================================
+def formatar_moeda(valor):
+    """Formata valor como moeda brasileira"""
+    if valor is None or pd.isna(valor):
+        return "R$ 0,00"
+    return f"R$ {valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+def formatar_numero(valor, decimal=0):
+    """Formata número com separador de milhar"""
+    if valor is None or pd.isna(valor):
+        return "0"
+    return f"{valor:,.{decimal}f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+def formatar_km(valor):
+    """Formata KM com separador de milhar"""
+    if valor is None or pd.isna(valor):
+        return "0"
+    return f"{valor:,.0f}".replace(",", ".")
 
 # ============================================
 # CARREGA OS DADOS
@@ -166,15 +215,15 @@ col1, col2, col3, col4, col5 = st.columns(5)
 
 with col1:
     total_entregas = len(df_filtrado)
-    st.metric("Total de Entregas", f"{total_entregas}")
+    st.metric("Total de Entregas", f"{formatar_numero(total_entregas)}")
 
 with col2:
     faturamento_total = df_filtrado["valor_nota_fiscal"].sum()
-    st.metric("Faturamento Total", f"R$ {faturamento_total:,.2f}")
+    st.metric("Faturamento Total", formatar_moeda(faturamento_total))
 
 with col3:
     frete_total = df_filtrado["custo_frete_cobrado"].sum()
-    st.metric("Custo Frete Total", f"R$ {frete_total:,.2f}")
+    st.metric("Custo Frete Total", formatar_moeda(frete_total))
 
 with col4:
     entregas_no_prazo = len(df_filtrado[df_filtrado["status_entrega"] == "Entregue No Prazo"])
@@ -184,7 +233,7 @@ with col4:
 with col5:
     if not df_propria.empty:
         km_total = df_propria["km_rodados"].sum()
-        st.metric("KM Rodados (Frota)", f"{km_total:,.0f}")
+        st.metric("KM Rodados (Frota)", formatar_km(km_total))
     else:
         st.metric("KM Rodados (Frota)", "0")
 
@@ -202,28 +251,33 @@ with col1:
         vazamento = df_externa["custo_frete_cobrado"].sum() - df_externa["custo_frete_tabela"].sum()
         if vazamento < 0:
             vazamento = 0
-        st.metric("Vazamento em Fretes", f"R$ {vazamento:,.2f}", delta=f"{(vazamento/df_externa['custo_frete_cobrado'].sum()*100 if df_externa['custo_frete_cobrado'].sum()>0 else 0):.1f}% do frete")
+        percentual = (vazamento / df_externa["custo_frete_cobrado"].sum() * 100) if df_externa["custo_frete_cobrado"].sum() > 0 else 0
+        st.metric(
+            "Vazamento em Fretes", 
+            formatar_moeda(vazamento),
+            delta=f"{percentual:.1f}% do frete"
+        )
     else:
         st.metric("Vazamento em Fretes", "R$ 0,00")
 
 with col2:
     if not df_propria.empty:
         custo_operacional = df_propria["custo_combustivel"].sum() + df_propria["custo_manutencao"].sum() + df_propria["custo_pedagio"].sum()
-        st.metric("Custo Operacional (Frota)", f"R$ {custo_operacional:,.2f}")
+        st.metric("Custo Operacional (Frota)", formatar_moeda(custo_operacional))
     else:
         st.metric("Custo Operacional (Frota)", "R$ 0,00")
 
 with col3:
     if not df_propria.empty:
         custo_combustivel = df_propria["custo_combustivel"].sum()
-        st.metric("Custo Combustível", f"R$ {custo_combustivel:,.2f}")
+        st.metric("Custo Combustível", formatar_moeda(custo_combustivel))
     else:
         st.metric("Custo Combustível", "R$ 0,00")
 
 with col4:
     if not df_propria.empty:
         custo_manutencao = df_propria["custo_manutencao"].sum()
-        st.metric("Custo Manutenção", f"R$ {custo_manutencao:,.2f}")
+        st.metric("Custo Manutenção", formatar_moeda(custo_manutencao))
     else:
         st.metric("Custo Manutenção", "R$ 0,00")
 
@@ -267,14 +321,13 @@ st.subheader("⭐ Indicadores de Qualidade")
 col1, col2, col3, col4 = st.columns(4)
 
 with col1:
-    total_avarias = df_filtrado["qtd_avarias"].sum()
     entregas_com_avaria = len(df_filtrado[df_filtrado["avarias"] == True])
     taxa_avaria = (entregas_com_avaria / total_entregas * 100) if total_entregas > 0 else 0
     st.metric("Taxa de Avarias", f"{taxa_avaria:.1f}%")
 
 with col2:
     valor_avaria = df_filtrado["valor_avaria"].sum()
-    st.metric("Valor Total de Avarias", f"R$ {valor_avaria:,.2f}")
+    st.metric("Valor Total de Avarias", formatar_moeda(valor_avaria))
 
 with col3:
     if not df_filtrado.empty:
@@ -310,7 +363,6 @@ st.subheader("📈 Análises Avançadas")
 graf1, graf2 = st.columns(2)
 
 with graf1:
-    # Status por tipo de operação
     df_status = df_filtrado.groupby(['tipo_operacao', 'status_entrega']).size().reset_index(name='quantidade')
     fig = px.bar(
         df_status, x='tipo_operacao', y='quantidade', color='status_entrega',
@@ -321,7 +373,6 @@ with graf1:
     st.plotly_chart(fig, use_container_width=True)
 
 with graf2:
-    # Entregas por estado
     df_estado = df_filtrado.groupby(['estado_exibicao', 'status_entrega']).size().reset_index(name='quantidade')
     df_estado = df_estado.rename(columns={'estado_exibicao': 'estado'})
     fig = px.bar(
@@ -344,7 +395,6 @@ if not df_propria.empty:
     graf3, graf4 = st.columns(2)
     
     with graf3:
-        # KM por motorista
         df_motorista = df_propria.groupby('nome_motorista').agg({
             'km_rodados': 'sum',
             'entregas_dia': 'sum'
@@ -357,7 +407,6 @@ if not df_propria.empty:
         st.plotly_chart(fig, use_container_width=True)
     
     with graf4:
-        # Consumo por veículo
         df_veiculo = df_propria.groupby('placa').agg({
             'km_rodados': 'sum',
             'litros_combustivel': 'sum'
@@ -375,7 +424,6 @@ if not df_propria.empty:
     graf5, graf6 = st.columns(2)
     
     with graf5:
-        # Custo por KM por motorista
         df_custo = df_propria.groupby('nome_motorista').agg({
             'km_rodados': 'sum',
             'custo_combustivel': 'sum',
@@ -392,7 +440,6 @@ if not df_propria.empty:
         st.plotly_chart(fig, use_container_width=True)
     
     with graf6:
-        # Avarias por motorista
         df_avaria = df_propria.groupby('nome_motorista').agg({
             'qtd_avarias': 'sum',
             'km_rodados': 'sum'
@@ -421,7 +468,6 @@ if not df_filtrado.empty:
         col1, col2 = st.columns(2)
         
         with col1:
-            # Gargalos por tipo
             df_garg = df_gargalos.groupby('motivo_gargalo').size().reset_index(name='quantidade')
             df_garg = df_garg.sort_values('quantidade', ascending=False)
             fig = px.pie(
@@ -432,7 +478,6 @@ if not df_filtrado.empty:
             st.plotly_chart(fig, use_container_width=True)
         
         with col2:
-            # Gargalos por transportadora
             df_garg_transp = df_gargalos.groupby('nome_transportadora').size().reset_index(name='quantidade')
             df_garg_transp = df_garg_transp.sort_values('quantidade', ascending=False)
             fig = px.bar(
@@ -466,7 +511,23 @@ if not df_propria.empty:
 
 colunas_exibicao += ["qtd_avarias", "valor_avaria", "nota_satisfacao"]
 
-st.dataframe(df_tabela[colunas_exibicao], use_container_width=True)
+# Formata os valores na tabela
+df_tabela_display = df_tabela[colunas_exibicao].copy()
+colunas_moeda = ["valor_nota_fiscal", "custo_frete_cobrado", "custo_combustivel", "custo_manutencao", "valor_avaria"]
+colunas_numero = ["km_rodados", "litros_combustivel", "qtd_avarias"]
+
+for col in colunas_moeda:
+    if col in df_tabela_display.columns:
+        df_tabela_display[col] = df_tabela_display[col].apply(lambda x: formatar_moeda(x) if pd.notna(x) else "R$ 0,00")
+
+for col in colunas_numero:
+    if col in df_tabela_display.columns:
+        if col == "km_rodados":
+            df_tabela_display[col] = df_tabela_display[col].apply(lambda x: formatar_km(x) if pd.notna(x) else "0")
+        else:
+            df_tabela_display[col] = df_tabela_display[col].apply(lambda x: f"{x:,.1f}".replace(",", "X").replace(".", ",").replace("X", ".") if pd.notna(x) else "0")
+
+st.dataframe(df_tabela_display, use_container_width=True)
 
 # ============================================
 # BOTÃO RECARREGAR
