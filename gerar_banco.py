@@ -4,15 +4,16 @@ import random
 from datetime import datetime, timedelta
 
 def criar_e_povoar_banco():
-    # ALTERAÇÃO CRÍTICA: Mudança de nome do arquivo para forçar um banco 100% novo
-    conexao = sqlite3.connect("torre_controle_v2.db")
+    # Vamos mudar o nome para torre_controle_v3.db para isolar completamente e forçar o Render a criar um arquivo do zero sem reaproveitar nada.
+    conexao = sqlite3.connect("torre_controle_v3.db")
     cursor = conexao.cursor()
 
-    # 1. Limpeza Absoluta das Tabelas
+    # 1. Limpeza Total de Tabelas Existentes
     cursor.execute("DROP TABLE IF EXISTS f_entregas;")
     cursor.execute("DROP TABLE IF EXISTS d_transportadoras;")
     cursor.execute("DROP TABLE IF EXISTS d_clientes;")
 
+    # Criação das tabelas com as colunas exatas
     cursor.execute("""
         CREATE TABLE d_transportadoras (
             id_transportadora INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -53,7 +54,7 @@ def criar_e_povoar_banco():
         );
     """)
 
-    # 2. Cadastro de Transportadoras
+    # 2. Inserção de Transportadoras
     transportadoras = [
         ("Alfa Transportes", "Lotação"),
         ("Beta Logística", "Fracionado"),
@@ -66,33 +67,32 @@ def criar_e_povoar_banco():
     ]
     cursor.executemany("INSERT INTO d_transportadoras (nome_transportadora, tipo_transporte) VALUES (?, ?);", transportadoras)
 
-    # 3. Mapeamento Rigoroso de Clientes (Apenas as siglas oficiais do Brasil)
+    # 3. Inserção Estrita de Clientes - Mapeado diretamente nas colunas (nome_cliente, cidade, estado, regiao)
     clientes = [
-        # Sudeste
         ("CD São Paulo", "São Paulo", "SP", "Sudeste"),
         ("Filial Rio de Janeiro", "Rio de Janeiro", "RJ", "Sudeste"),
         ("Atacado Belo Horizonte", "Belo Horizonte", "MG", "Sudeste"),
         ("Operador Vitória", "Vitória", "ES", "Sudeste"),
-        # Sul
         ("Cooperativa Curitiba", "Curitiba", "PR", "Sul"),
         ("Logística Joinville", "Joinville", "SC", "Sul"),
         ("Terminal Porto Alegre", "Porto Alegre", "RS", "Sul"),
-        # Nordeste
         ("Distribuidora Salvador", "Salvador", "BA", "Nordeste"),
         ("Hub Fortaleza", "Fortaleza", "CE", "Nordeste"),
         ("Polo Recife", "Recife", "PE", "Nordeste"),
         ("Logística São Luís", "São Luís", "MA", "Nordeste"),
-        # Centro-Oeste
         ("Agro Goiânia", "Goiânia", "GO", "Centro-Oeste"),
         ("Plataforma Cuiabá", "Cuiabá", "MT", "Centro-Oeste"),
-        # Norte
         ("Norte Belém", "Belém", "PA", "Norte"),
         ("Polo Manaus", "Manaus", "AM", "Norte")
     ]
-    cursor.executemany("INSERT INTO d_clientes (nome_cliente, city, estado, regiao) VALUES (?, ?, ?, ?);".replace("city", "cidade"), clientes)
+    
+    cursor.executemany("""
+        INSERT INTO d_clientes (nome_cliente, cidade, estado, regiao) 
+        VALUES (?, ?, ?, ?);
+    """, clientes)
     conexao.commit()
 
-    # 4. Segmentações de Mercado
+    # 4. Segmentações de Mercado Requeridas
     segmentos = ["E-Commerce", "Varejo", "Indústria", "Agronegócio", "Medicamentos", "Alimentos"]
     
     status_opcoes = ["Entregue No Prazo", "Atrasado", "Retido na Barreira Fiscal", "Extraviado"]
@@ -106,6 +106,7 @@ def criar_e_povoar_banco():
     random.seed(42)
     data_base = datetime(2026, 6, 1)
 
+    # Gerando as 100 Notas Fiscais
     for i in range(1, 101):
         nf = f"NF-2026-{i:03d}"
         id_transp = random.randint(1, 8)
@@ -144,7 +145,7 @@ def criar_e_povoar_banco():
 
     conexao.commit()
     conexao.close()
-    print("Novo Banco V2 gerado com sucesso!")
+    print("Banco V3 gerado perfeitamente!")
 
 if __name__ == "__main__":
     criar_e_povoar_banco()
