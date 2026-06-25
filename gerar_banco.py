@@ -4,16 +4,16 @@ import random
 from datetime import datetime, timedelta
 
 def criar_e_povoar_banco():
-    # Vamos mudar o nome para torre_controle_v3.db para isolar completamente e forçar o Render a criar um arquivo do zero sem reaproveitar nada.
-    conexao = sqlite3.connect("torre_controle_v3.db")
+    # Sincronizado estritamente em: torre_controle_final.db
+    conexao = sqlite3.connect("torre_controle_final.db")
     cursor = conexao.cursor()
 
-    # 1. Limpeza Total de Tabelas Existentes
+    # Limpeza total de tabelas existentes para evitar duplicações ou dados fantasmas
     cursor.execute("DROP TABLE IF EXISTS f_entregas;")
     cursor.execute("DROP TABLE IF EXISTS d_transportadoras;")
     cursor.execute("DROP TABLE IF EXISTS d_clientes;")
 
-    # Criação das tabelas com as colunas exatas
+    # Criação da estrutura oficial das tabelas
     cursor.execute("""
         CREATE TABLE d_transportadoras (
             id_transportadora INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -54,7 +54,7 @@ def criar_e_povoar_banco():
         );
     """)
 
-    # 2. Inserção de Transportadoras
+    # Cadastro das 8 Transportadoras Parceiras
     transportadoras = [
         ("Alfa Transportes", "Lotação"),
         ("Beta Logística", "Fracionado"),
@@ -67,7 +67,7 @@ def criar_e_povoar_banco():
     ]
     cursor.executemany("INSERT INTO d_transportadoras (nome_transportadora, tipo_transporte) VALUES (?, ?);", transportadoras)
 
-    # 3. Inserção Estrita de Clientes - Mapeado diretamente nas colunas (nome_cliente, cidade, estado, regiao)
+    # Cadastro Oficial dos 15 Clientes/Estados (Sem nenhum erro de digitação nas siglas)
     clientes = [
         ("CD São Paulo", "São Paulo", "SP", "Sudeste"),
         ("Filial Rio de Janeiro", "Rio de Janeiro", "RJ", "Sudeste"),
@@ -85,16 +85,11 @@ def criar_e_povoar_banco():
         ("Norte Belém", "Belém", "PA", "Norte"),
         ("Polo Manaus", "Manaus", "AM", "Norte")
     ]
-    
-    cursor.executemany("""
-        INSERT INTO d_clientes (nome_cliente, cidade, estado, regiao) 
-        VALUES (?, ?, ?, ?);
-    """, clientes)
+    cursor.executemany("INSERT INTO d_clientes (nome_cliente, cidade, estado, regiao) VALUES (?, ?, ?, ?);", clientes)
     conexao.commit()
 
-    # 4. Segmentações de Mercado Requeridas
+    # Configuração das 6 Segmentações de Mercado Corretas
     segmentos = ["E-Commerce", "Varejo", "Indústria", "Agronegócio", "Medicamentos", "Alimentos"]
-    
     status_opcoes = ["Entregue No Prazo", "Atrasado", "Retido na Barreira Fiscal", "Extraviado"]
     gargalos_opcoes = {
         "Entregue No Prazo": "Nenhum Operacional",
@@ -106,7 +101,7 @@ def criar_e_povoar_banco():
     random.seed(42)
     data_base = datetime(2026, 6, 1)
 
-    # Gerando as 100 Notas Fiscais
+    # Geração das 100 Notas Fiscais vinculadas à nova malha de 15 estados
     for i in range(1, 101):
         nf = f"NF-2026-{i:03d}"
         id_transp = random.randint(1, 8)
@@ -145,7 +140,7 @@ def criar_e_povoar_banco():
 
     conexao.commit()
     conexao.close()
-    print("Banco V3 gerado perfeitamente!")
+    print("Banco de dados oficial limpo e gerado com sucesso!")
 
 if __name__ == "__main__":
     criar_e_povoar_banco()
