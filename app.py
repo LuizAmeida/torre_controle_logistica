@@ -171,7 +171,7 @@ st.markdown("<p style='text-align: center; color: gray;'>Solução Gerencial: Au
 st.markdown("---")
 
 # Carregamento estrito e direto do banco torre_controle_final.db com controle de expiração de cache
-@st.cache_data(ttl=1)
+@st.cache_data(ttl=0, show_spinner=False)  # ttl=0 força recarregar sempre
 def carregar_dados():
     # Verifica se o banco existe antes de carregar
     if not os.path.exists("torre_controle_final.db"):
