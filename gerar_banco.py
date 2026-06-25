@@ -65,28 +65,28 @@ def criar_e_povoar_banco():
     ]
     cursor.executemany("INSERT INTO d_transportadoras (nome_transportadora, tipo_transporte) VALUES (?, ?);", transportadoras)
 
-    # 3. Inserindo Clientes distribuídos por 15 Estados (Cobrindo de fato todas as 5 Regiões)
+    # 3. CORREÇÃO CRÍTICA: Alinhamento exato das colunas (nome, cidade, estado, regiao)
     clientes = [
         # Sudeste
-        ("Centro de Distribuição SP", "São Paulo", "SP", "Sudeste"),
-        ("Filial Logística RJ", "Rio de Janeiro", "RJ", "Sudeste"),
-        ("Atacado Central MG", "Belo Horizonte", "MG", "Sudeste"),
-        ("Operador Vitória ES", "Vitória", "ES", "Sudeste"),
+        ("CD São Paulo", "São Paulo", "SP", "Sudeste"),
+        ("Filial Rio de Janeiro", "Rio de Janeiro", "RJ", "Sudeste"),
+        ("Atacado Belo Horizonte", "Belo Horizonte", "MG", "Sudeste"),
+        ("Operador Vitória", "Vitória", "ES", "Sudeste"),
         # Sul
-        ("Cooperativa Sul PR", "Curitiba", "PR", "Sul"),
-        ("Logística Integrada SC", "Joinville", "SC", "Sul"),
-        ("Terminal de Cargas RS", "Porto Alegre", "RS", "Sul"),
+        ("Cooperativa Curitiba", "Curitiba", "PR", "Sul"),
+        ("Logística Joinville", "Joinville", "SC", "Sul"),
+        ("Terminal Porto Alegre", "Porto Alegre", "RS", "Sul"),
         # Nordeste
-        ("Distribuidora Bahia BA", "Salvador", "BA", "Nordeste"),
-        ("Hub Nordeste CE", "Fortaleza", "CE", "Nordeste"),
-        ("Polo Comercial PE", "Recife", "PE", "Nordeste"),
-        ("Logística Maranhão MA", "São Luís", "MA", "Nordeste"),
+        ("Distribuidora Salvador", "Salvador", "BA", "Nordeste"),
+        ("Hub Fortaleza", "Fortaleza", "CE", "Nordeste"),
+        ("Polo Recife", "Recife", "PE", "Nordeste"),
+        ("Logística São Luís", "São Luís", "MA", "Nordeste"),
         # Centro-Oeste
-        ("Agro Logística GO", "Goiânia", "GO", "Centro-Oeste"),
-        ("Plataforma MT", "Cuiabá", "MT", "Centro-Oeste"),
-        # Norte (Inclusão e garantia de dados)
-        ("Norte Atacadista PA", "Belém", "PA", "Norte"),
-        ("Polo Industrial AM", "Manaus", "AM", "Norte")
+        ("Agro Goiânia", "Goiânia", "GO", "Centro-Oeste"),
+        ("Plataforma Cuiabá", "Cuiabá", "MT", "Centro-Oeste"),
+        # Norte
+        ("Norte Belém", "Belém", "PA", "Norte"),
+        ("Polo Manaus", "Manaus", "AM", "Norte")
     ]
     cursor.executemany("INSERT INTO d_clientes (nome_cliente, cidade, estado, regiao) VALUES (?, ?, ?, ?);", clientes)
     conexao.commit()
@@ -105,11 +105,11 @@ def criar_e_povoar_banco():
     random.seed(42)
     data_base = datetime(2026, 6, 1)
 
-    # Gerando as 100 Notas Fiscais distribuídas na nova estrutura de 15 estados
+    # Gerando as 100 Notas Fiscais mapeadas rigorosamente de 1 a 15
     for i in range(1, 101):
         nf = f"NF-2026-{i:03d}"
         id_transp = random.randint(1, 8)
-        id_clie = random.randint(1, 15) # Sorteia agora entre os 15 clientes/estados cadastrados
+        id_clie = random.randint(1, 15) 
         seg = random.choice(segmentos)
         
         d_emissao = data_base + timedelta(days=random.randint(0, 15))
@@ -144,7 +144,7 @@ def criar_e_povoar_banco():
 
     conexao.commit()
     conexao.close()
-    print("Banco de dados nacional atualizado com sucesso!")
+    print("Banco de dados nacional alinhado com sucesso!")
 
 if __name__ == "__main__":
     criar_e_povoar_banco()
