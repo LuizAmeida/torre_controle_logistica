@@ -5,23 +5,31 @@ import plotly.express as px
 import os
 from datetime import datetime
 
-# --- AUTOMAÇÃO: Força a criação do Banco V2 se ele não existir ---
+# Automação: Força a exclusão física do arquivo local para obrigar a recriação limpa
+if os.path.exists("torre_controle_final.db"):
+    try:
+        os.remove("torre_controle_final.db")
+    except Exception:
+        pass
+
+# Automação: Executa o script gerador para criar a nova base atualizada
 try:
     import gerar_banco
     gerar_banco.criar_e_povoar_banco()
 except Exception:
     pass
 
-# Configuração da página executiva
+# Configuração da página executiva profissional
 st.set_page_config(page_title="Torre de Controle Logística", layout="wide")
 
 st.markdown("<h1 style='text-align: center;'>🛸 Torre de Performance Logística</h1>", unsafe_allow_html=True)
 st.markdown("<p style='text-align: center; color: gray;'>Solução Gerencial: Auditoria Automática de Fretes, Análise de SLA e Controle de Metas</p>", unsafe_allow_html=True)
 st.markdown("---")
 
-# --- Conexão e Carregamento dos Dados apontando para o V3---
+# Carregamento estrito e direto do banco torre_controle_final.db com controle de expiração de cache
+@st.cache_data(ttl=1)
 def carregar_dados():
-    conexao = sqlite3.connect("torre_controle_v3.db")
+    conexao = sqlite3.connect("torre_controle_final.db")
     query = """
         SELECT 
             f.id_entrega,
@@ -52,10 +60,9 @@ def carregar_dados():
 
 df_original = carregar_dados()
 
-# --- Painel de Filtros Cruzados Avançado com Linha Temporal ---
+# Construção do Painel de Filtros Cruzados com a Linha Temporal Integrada
 st.sidebar.header("🎯 Painel de Filtros Cruzados")
 
-# Filtro de Intervalo de Datas Dinâmico
 data_minima = df_original["data_emissao"].min().date()
 data_maxima = df_original["data_emissao"].max().date()
 
@@ -85,7 +92,7 @@ status_selecionado = st.sidebar.selectbox("Status da Entrega:", lista_status, ke
 lista_transportadoras = ["Todos"] + sorted(list(df_original["nome_transportadora"].unique()))
 transportadora_selecionada = st.sidebar.selectbox("Transportadora:", lista_transportadoras, key="sb_transportadora")
 
-# Aplicando as regras de filtros cruzados incluindo a inteligência de datas
+# Processamento dinâmico dos filtros na memória
 df_filtrado = df_original.copy()
 
 if isinstance(periodo_selecionado, tuple) and len(periodo_selecionado) == 2:
@@ -106,8 +113,7 @@ if status_selecionado != "Todos":
 if transportadora_selecionada != "Todos":
     df_filtrado = df_filtrado[df_filtrado["nome_transportadora"] == transportadora_selecionada]
 
-
-# --- Indicadores Comparativos de Eficiência ---
+# Indicadores de Performance Operacional
 st.subheader("📊 Indicadores de Performance Operacional")
 col1, col2, col3, col4 = st.columns(4)
 
@@ -143,9 +149,8 @@ with col4:
 
 st.markdown("---")
 
-# --- Relatório Executivo ---
 if taxa_otif >= 95.0:
-    st.success(f"🏅 **Classificação de Mercado - Zona de Excelência:** O nível de serviço atual está em **{taxa_otif:.1f}%**, cumprindo as metas contratuais.")
+    st.success(f"🏅 **Classificação de Mercado - Zona de Excelência:** O nível de serviço atual está em **{taxa_otif:.1f}%**.")
 elif taxa_otif >= 85.0:
     st.warning(f"⚠️ **Classificação de Mercado - Zona de Atenção:** O nível de serviço está em **{taxa_otif:.1f}%**.")
 else:
@@ -153,7 +158,7 @@ else:
 
 st.markdown("---")
 
-# --- Gráficos Estruturados ---
+# Bloco Gráfico 1 e 2
 st.subheader("📈 Volumetria e Distribuição de SLAs")
 graf1, graf2 = st.columns(2)
 
@@ -168,25 +173,14 @@ with graf1:
     st.plotly_chart(fig_estado, use_container_width=True)
 
 with graf2:
-    if status_selecionado != "Todos":
-        df_pizza_dados = df_original.copy()
-        if segmento_selecionado != "Todos": df_pizza_dados = df_pizza_dados[df_pizza_dados["segmento_operacao"] == segmento_selecionado]
-        if regiao_selecionada != "Todos": df_pizza_dados = df_pizza_dados[df_pizza_dados["regiao"] == regiao_selecionada]
-        if estado_selecionado != "Todos": df_pizza_dados = df_pizza_dados[df_pizza_dados["estado"] == estado_selecionado]
-        if transportadora_selecionada != "Todos": df_pizza_dados = df_pizza_dados[df_pizza_dados["nome_transportadora"] == transportadora_selecionada]
-        title_pizza = "Visão Geral de Status no Contexto Atual"
-    else:
-        df_pizza_dados = df_filtrado
-        title_pizza = "Distribuição Geral por Status de Entrega"
-
-    df_pizza = df_pizza_dados["status_entrega"].value_counts().reset_index()
+    df_pizza = df_filtrado["status_entrega"].value_counts().reset_index()
     df_pizza.columns = ["Status", "Quantidade"]
-    fig_pizza = px.pie(df_pizza, names="Status", values="Quantidade", title=title_pizza, hole=0.4)
+    fig_pizza = px.pie(df_pizza, names="Status", values="Quantidade", title="Distribuição Geral por Status de Entrega", hole=0.4)
     st.plotly_chart(fig_pizza, use_container_width=True)
 
 st.markdown("---")
 
-# --- Performance de Parceiros ---
+# Bloco Gráfico 3 e 4
 st.subheader("🚛 Performance de Parceiros e Auditoria de Custos")
 graf3, graf4 = st.columns(2)
 
@@ -207,14 +201,13 @@ with graf4:
     df_custos_melt['Tipo_Custo'] = df_custos_melt['Tipo_Custo'].map({'custo_frete_tabela': 'Frete Contratado', 'custo_frete_cobrado': 'Frete Real Cobrado'})
     fig_comparativo = px.bar(
         df_custos_melt, x='segmento_operacao', y='Valor', color='Tipo_Custo', barmode='group',
-        title="Auditoria Financeira por Canal",
-        labels={'segmento_operacao': 'Segmento', 'Valor': 'Montante em R$'}
+        title="Auditoria Financeira por Canal"
     )
     st.plotly_chart(fig_comparativo, use_container_width=True)
 
 st.markdown("---")
 
-# --- Tabela Final de Dados ---
+# Tabela Operacional de Detalhamento
 st.subheader("📋 Detalhamento das Notas Fiscais e Ocorrências")
 colunas_exibicao = [
     "numero_nota_fiscal", "nome_transportadora", "nome_cliente", "estado",
