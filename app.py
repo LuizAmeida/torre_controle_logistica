@@ -49,23 +49,19 @@ df_original = carregar_dados()
 # --- CONSTRUÇÃO/MODIFICAÇÃO: Criação dos Filtros Dinâmicos na Barra Lateral ---
 st.sidebar.header("🎯 Painel de Filtros Cruzados")
 
-# Filtro 1: Segmento de Operação (Com opção 'Todos')
 lista_segmentos = ["Todos"] + list(df_original["segmento_operacao"].unique())
 segmento_selecionado = st.sidebar.selectbox("Selecione o Segmento:", lista_segmentos)
 
-# Filtro 2: Região de Destino (Com opção 'Todos')
 lista_regioes = ["Todos"] + list(df_original["regiao"].unique())
 regiao_selecionada = st.sidebar.selectbox("Selecione a Região:", lista_regioes)
 
-# Filtro 3: Status de Entrega (Com opção 'Todos')
 lista_status = ["Todos"] + list(df_original["status_entrega"].unique())
 status_selecionado = st.sidebar.selectbox("Status da Entrega:", lista_status)
 
-# Filtro 4: Transportadora (Com opção 'Todos')
 lista_transportadoras = ["Todos"] + list(df_original["nome_transportadora"].unique())
 transportadora_selecionada = st.sidebar.selectbox("Transportadora:", lista_transportadoras)
 
-# Aplicando a lógica dos filtros no DataFrame de visualização
+# Aplicando os filtros cruzados
 df_filtrado = df_original.copy()
 
 if segmento_selecionado != "Todos":
@@ -106,7 +102,44 @@ with col4:
 st.markdown("---")
 
 
-# --- CONSTRUÇÃO/MODIFICAÇÃO: Bloco Gráfico Bloco 1 ---
+# --- CONSTRUÇÃO/MODIFICAÇÃO: Nova Seção de Destaques Analíticos (Cards em Texto) ---
+st.subheader("💡 Destaques Estratégicos da Operação")
+col_pos, col_neg = st.columns(2)
+
+with col_pos:
+    st.markdown("<h4 style='color: #2ecc71;'>✅ Destaques Positivos</h4>", unsafe_allow_html=True)
+    
+    # Lógica para Destaque Positivo 1
+    if taxa_otif >= 85.0:
+        st.write(f"• **Excelente Nível de SLA:** A operação mantém a taxa de OTIF em **{taxa_otif:.1f}%**, cumprindo as janelas de entrega contratuais.")
+    else:
+        st.write(f"• **Volume Controlado:** Foram processadas **{total_entregas}** entregas sem interrupções críticas de fluxo.")
+        
+    # Lógica para Destaque Positivo 2
+    regiao_top = df_filtrado[df_filtrado["status_entrega"] == "Entregue No Prazo"]["regiao"].value_counts()
+    if not regiao_top.empty:
+        st.write(f"• **Região Alta Performance:** A região **{regiao_top.index[0]}** registrou a maior volumetria de eficiência e entregas cumpridas dentro do prazo.")
+
+with col_neg:
+    st.markdown("<h4 style='color: #e74c3c;'>❌ Destaques Negativos / Alertas</h4>", unsafe_allow_html=True)
+    
+    # Lógica para Destaque Negativo 1 (Financeiro)
+    if prejuizo_frete > 0:
+        st.write(f"• **Distorção de Custo:** Identificado vazamento de margem de **R$ {prejuizo_frete:,.2f}** referente a faturamentos acima da tabela contratada.")
+    else:
+        st.write("• **Eficiência Financeira:** Nenhuma transportadora cobrou valores acima da tabela contratada.")
+        
+    # Lógica para Destaque Negativo 2 (Operacional)
+    qtd_atrasados = len(df_filtrado[df_filtrado["status_entrega"] == "Atrasado"])
+    if qtd_atrasados > 0:
+        st.write(f"• **Atrasos Identificados:** Há **{qtd_atrasados}** entregas fora do prazo estipulado penalizando o lead time.")
+    else:
+        st.write("• **Risco Zero de Atraso:** Não constam entregas em atraso sob o filtro atual.")
+
+st.markdown("---")
+
+
+# --- CONSTRUÇÃO/MODIFICAÇÃO: Bloco Gráfico Ajustado (Substituindo a Pizza Poluída) ---
 st.subheader("📈 Volumetria e Distribuição de SLAs")
 graf1, graf2 = st.columns(2)
 
@@ -126,25 +159,40 @@ with graf1:
     st.plotly_chart(fig_linha, use_container_width=True)
 
 with graf2:
-    df_pizza = df_filtrado["status_entrega"].value_counts().reset_index()
+    # CORREÇÃO CRÍTICA: Se o usuário filtrar por status, o gráfico de Pizza perde o sentido (fica 100%).
+    # Para corrigir isso, a Pizza passará a mostrar a distribuição de STATUS DA REGIÃO selecionada, independente do filtro de status.
+    if status_selecionado != "Todos":
+        # Se filtrou por status, limpamos o filtro de status apenas na pizza para mostrar os outros status existentes na região/segmento
+        df_pizza_dados = df_original.copy()
+        if segmento_selecionado != "Todos":
+            df_pizza_dados = df_pizza_dados[df_pizza_dados["segmento_operacao"] == segmento_selecionado]
+        if regiao_selecionada != "Todos":
+            df_pizza_dados = df_pizza_dados[df_pizza_dados["regiao"] == regiao_selecionada]
+        if transportadora_selecionada != "Todos":
+            df_pizza_dados = df_pizza_dados[df_pizza_dados["nome_transportadora"] == transportadora_selecionada]
+        title_pizza = "Visão Geral de Status no Contexto Atual"
+    else:
+        df_pizza_dados = df_filtrado
+        title_pizza = "Distribuição Geral por Status de Entrega"
+
+    df_pizza = df_pizza_dados["status_entrega"].value_counts().reset_index()
     df_pizza.columns = ["Status", "Quantidade"]
     
     fig_pizza = px.pie(
         df_pizza, 
         names="Status", 
         values="Quantidade", 
-        title="Distribuição por Status de Entrega",
+        title=title_pizza,
         hole=0.4
     )
     st.plotly_chart(fig_pizza, use_container_width=True)
 
 
-# --- CONSTRUÇÃO/MODIFICAÇÃO: Bloco Gráfico Bloco 2 (Novos Gráficos) ---
+# --- CONSTRUÇÃO/MODIFICAÇÃO: Bloco Gráfico Bloco 2 ---
 st.subheader("🚛 Performance de Parceiros e Auditoria de Custos")
 graf3, graf4 = st.columns(2)
 
 with graf3:
-    # Gráfico 3: Performance de Cumprimento de SLA por Transportadora (Barras Empilhadas)
     df_transp = df_filtrado.groupby(['nome_transportadora', 'status_entrega']).size().reset_index(name='entregas')
     fig_barra_transp = px.bar(
         df_transp,
@@ -158,7 +206,6 @@ with graf3:
     st.plotly_chart(fig_barra_transp, use_container_width=True)
 
 with graf4:
-    # Gráfico 4: Comparativo Financeiro - Tabela de Frete vs Cobrado real (Barras Lado a Lado)
     df_custos = df_filtrado.groupby('segmento_operacao')[['custo_frete_tabela', 'custo_frete_cobrado']].sum().reset_index()
     df_custos_melt = df_custos.melt(id_vars='segmento_operacao', value_vars=['custo_frete_tabela', 'custo_frete_cobrado'],
                                     var_name='Tipo_Custo', value_name='Valor')
@@ -181,7 +228,6 @@ st.markdown("---")
 # --- CONSTRUÇÃO/MODIFICAÇÃO: Seção de Inteligência de Negócio e Insights Automatizados ---
 st.subheader("🧠 Diagnóstico Automatizado de Gargalos Logísticos")
 
-# Filtrando causas que não sejam operacionais normais
 df_erros = df_filtrado[df_filtrado["motivo_gargalo"] != "Nenhum Operacional"]
 df_erros = df_erros[df_erros["motivo_gargalo"] != "Carga em Fluxo Normal"]
 
