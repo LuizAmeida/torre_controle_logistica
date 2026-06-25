@@ -50,16 +50,16 @@ df_original = carregar_dados()
 st.sidebar.header("🎯 Painel de Filtros Cruzados")
 
 lista_segmentos = ["Todos"] + list(df_original["segmento_operacao"].unique())
-segmento_selecionado = st.sidebar.selectbox("Selecione o Segmento:", lista_segmentos)
+segmento_selecionado = st.sidebar.selectbox("Selecione o Segmento:", lista_segmentos, key="sb_segmento")
 
 lista_regioes = ["Todos"] + list(df_original["regiao"].unique())
-regiao_selecionada = st.sidebar.selectbox("Selecione a Região:", lista_regioes)
+regiao_selecionada = st.sidebar.selectbox("Selecione a Região:", lista_regioes, key="sb_regiao")
 
 lista_status = ["Todos"] + list(df_original["status_entrega"].unique())
-status_selecionado = st.sidebar.selectbox("Status da Entrega:", lista_status)
+status_selecionado = st.sidebar.selectbox("Status da Entrega:", lista_status, key="sb_status")
 
 lista_transportadoras = ["Todos"] + list(df_original["nome_transportadora"].unique())
-transportadora_selecionada = st.sidebar.selectbox("Transportadora:", lista_transportadoras)
+transportadora_selecionada = st.sidebar.selectbox("Transportadora:", lista_transportadoras, key="sb_transportadora")
 
 # Aplicando os filtros cruzados
 df_filtrado = df_original.copy()
@@ -102,20 +102,18 @@ with col4:
 st.markdown("---")
 
 
-# --- CONSTRUÇÃO/MODIFICAÇÃO: Nova Seção de Destaques Analíticos (Cards em Texto) ---
+# --- CONSTRUÇÃO/MODIFICAÇÃO: Seção de Destaques Analíticos (Cards em Texto) ---
 st.subheader("💡 Destaques Estratégicos da Operação")
 col_pos, col_neg = st.columns(2)
 
 with col_pos:
     st.markdown("<h4 style='color: #2ecc71;'>✅ Destaques Positivos</h4>", unsafe_allow_html=True)
     
-    # Lógica para Destaque Positivo 1
     if taxa_otif >= 85.0:
         st.write(f"• **Excelente Nível de SLA:** A operação mantém a taxa de OTIF em **{taxa_otif:.1f}%**, cumprindo as janelas de entrega contratuais.")
     else:
         st.write(f"• **Volume Controlado:** Foram processadas **{total_entregas}** entregas sem interrupções críticas de fluxo.")
         
-    # Lógica para Destaque Positivo 2
     regiao_top = df_filtrado[df_filtrado["status_entrega"] == "Entregue No Prazo"]["regiao"].value_counts()
     if not regiao_top.empty:
         st.write(f"• **Região Alta Performance:** A região **{regiao_top.index[0]}** registrou a maior volumetria de eficiência e entregas cumpridas dentro do prazo.")
@@ -123,18 +121,16 @@ with col_pos:
 with col_neg:
     st.markdown("<h4 style='color: #e74c3c;'>❌ Destaques Negativos / Alertas</h4>", unsafe_allow_html=True)
     
-    # Lógica para Destaque Negativo 1 (Financeiro)
     if prejuizo_frete > 0:
         st.write(f"• **Distorção de Custo:** Identificado vazamento de margem de **R$ {prejuizo_frete:,.2f}** referente a faturamentos acima da tabela contratada.")
     else:
         st.write("• **Eficiência Financeira:** Nenhuma transportadora cobrou valores acima da tabela contratada.")
         
-    # Lógica para Destaque Negativo 2 (Operacional)
     qtd_atrasados = len(df_filtrado[df_filtrado["status_entrega"] == "Atrasado"])
     if qtd_atrasados > 0:
         st.write(f"• **Atrasos Identificados:** Há **{qtd_atrasados}** entregas fora do prazo estipulado penalizando o lead time.")
     else:
-        st.write("• **Risco Zero de Atraso:** Não constam entregas em atraso sob o filtro atual.")
+        st.write("• **Risco Zero de Atraso:** Não constam entregas indevidas em atraso sob o filtro atual.")
 
 st.markdown("---")
 
@@ -159,10 +155,7 @@ with graf1:
     st.plotly_chart(fig_linha, use_container_width=True)
 
 with graf2:
-    # CORREÇÃO CRÍTICA: Se o usuário filtrar por status, o gráfico de Pizza perde o sentido (fica 100%).
-    # Para corrigir isso, a Pizza passará a mostrar a distribuição de STATUS DA REGIÃO selecionada, independente do filtro de status.
     if status_selecionado != "Todos":
-        # Se filtrou por status, limpamos o filtro de status apenas na pizza para mostrar os outros status existentes na região/segmento
         df_pizza_dados = df_original.copy()
         if segmento_selecionado != "Todos":
             df_pizza_dados = df_pizza_dados[df_pizza_dados["segmento_operacao"] == segmento_selecionado]
@@ -225,27 +218,31 @@ with graf4:
 st.markdown("---")
 
 
-# --- CONSTRUÇÃO/MODIFICAÇÃO: Seção de Inteligência de Negócio e Insights Automatizados ---
+# --- CONSTRUÇÃO/MODIFICAÇÃO: Ajuste de Container Fixo para Prevenir Erros de Front-end ---
 st.subheader("🧠 Diagnóstico Automatizado de Gargalos Logísticos")
 
-df_erros = df_filtrado[df_filtrado["motivo_gargalo"] != "Nenhum Operacional"]
-df_erros = df_erros[df_erros["motivo_gargalo"] != "Carga em Fluxo Normal"]
+# Usando st.container para blindar a renderização do React contra o bug de 'removeChild'
+container_diagnostico = st.container()
 
-if not df_erros.empty:
-    causa_raiz = df_erros["motivo_gargalo"].value_counts().idxmax()
-    frequencia_causa = df_erros["motivo_gargalo"].value_counts().max()
-    
-    st.info(f"""
-        **Análise de Causa Raiz:** Identificamos que o principal gargalo operacional sob o filtro selecionado é **"{causa_raiz}"**, ocorrendo em **{frequencia_causa}** incidentes afetando o nível de serviço do período. 
-        *Recomendação Operacional: Revisar o processo de agendamento ou acionar a mesa de operações para mitigar novos atrasos desse tipo.*
-    """)
-else:
-    st.success("🎉 **Eficiência Total:** Nenhum desvio de fluxo ou gargalo operacional foi registrado sob as condições dos filtros atuais.")
+with container_diagnostico:
+    df_erros = df_filtrado[df_filtrado["motivo_gargalo"] != "Nenhum Operacional"]
+    df_erros = df_erros[df_erros["motivo_gargalo"] != "Carga em Fluxo Normal"]
+
+    if not df_erros.empty:
+        causa_raiz = df_erros["motivo_gargalo"].value_counts().idxmax()
+        frequencia_causa = df_erros["motivo_gargalo"].value_counts().max()
+        
+        st.info(f"""
+            **Análise de Causa Raiz:** Identificamos que o principal gargalo operacional sob o filtro selecionado é **"{causa_raiz}"**, ocorrendo em **{frequencia_causa}** incidentes afetando o nível de serviço do período. 
+            *Recomendação Operacional: Revisar o processo de agendamento ou acionar a mesa de operações para mitigar novos atrasos desse tipo.*
+        """, key="msg_info_gargalo")
+    else:
+        st.success("🎉 **Eficiência Total:** Nenhum desvio de fluxo ou gargalo operacional foi registrado sob as condições dos filtros atuais.", key="msg_success_gargalo")
 
 st.markdown("---")
 
 
-# --- CONSTRUÇÃO/MODIFICAÇÃO: Tabela de Dados Operacionais e Detalhamento ---
+# --- CONSTRUÇÃO/MODIFICAÇÃO: Tabela Blindada com Chave de Identificação Estática ---
 st.subheader("📋 Detalhamento das Notas Fiscais e Ocorrências")
 
 colunas_exibicao = [
@@ -254,4 +251,5 @@ colunas_exibicao = [
     "valor_nota_fiscal", "custo_frete_cobrado", "motivo_gargalo"
 ]
 
-st.dataframe(df_filtrado[colunas_exibicao], use_container_width=True)
+# Adicionada a key st_df_final para forçar o Streamlit a reconstruir o elemento sem travar o DOM do navegador
+st.dataframe(df_filtrado[colunas_exibicao], use_container_width=True, key="st_df_final")
