@@ -7,7 +7,7 @@ def criar_e_povoar_banco():
     conexao = sqlite3.connect("torre_controle_final.db")
     cursor = conexao.cursor()
 
-    # 1. Criando as Tabelas
+    # 1. Limpeza e Recriação das Tabelas
     cursor.execute("DROP TABLE IF EXISTS f_entregas;")
     cursor.execute("DROP TABLE IF EXISTS d_transportadoras;")
     cursor.execute("DROP TABLE IF EXISTS d_clientes;")
@@ -65,22 +65,35 @@ def criar_e_povoar_banco():
     ]
     cursor.executemany("INSERT INTO d_transportadoras (nome_transportadora, tipo_transporte) VALUES (?, ?);", transportadoras)
 
-    # 3. Inserindo Clientes distribuídos por Estados e Regiões
+    # 3. Inserindo Clientes distribuídos por 15 Estados (Cobrindo de fato todas as 5 Regiões)
     clientes = [
-        ("Magazine Luiza SP", "São Paulo", "SP", "Sudeste"),
-        ("Via Varejo RJ", "Rio de Janeiro", "RJ", "Sudeste"),
-        ("Mercado Livre MG", "Belo Horizonte", "MG", "Sudeste"),
-        ("Ambev BA", "Salvador", "BA", "Nordeste"),
-        ("Grendene CE", "Fortaleza", "CE", "Nordeste"),
-        ("Mundial RS", "Porto Alegre", "RS", "Sul"),
-        ("Terminal PR", "Curitiba", "PR", "Sul"),
-        ("Agro GO", "Goiânia", "GO", "Centro-Oeste")
+        # Sudeste
+        ("Centro de Distribuição SP", "São Paulo", "SP", "Sudeste"),
+        ("Filial Logística RJ", "Rio de Janeiro", "RJ", "Sudeste"),
+        ("Atacado Central MG", "Belo Horizonte", "MG", "Sudeste"),
+        ("Operador Vitória ES", "Vitória", "ES", "Sudeste"),
+        # Sul
+        ("Cooperativa Sul PR", "Curitiba", "PR", "Sul"),
+        ("Logística Integrada SC", "Joinville", "SC", "Sul"),
+        ("Terminal de Cargas RS", "Porto Alegre", "RS", "Sul"),
+        # Nordeste
+        ("Distribuidora Bahia BA", "Salvador", "BA", "Nordeste"),
+        ("Hub Nordeste CE", "Fortaleza", "CE", "Nordeste"),
+        ("Polo Comercial PE", "Recife", "PE", "Nordeste"),
+        ("Logística Maranhão MA", "São Luís", "MA", "Nordeste"),
+        # Centro-Oeste
+        ("Agro Logística GO", "Goiânia", "GO", "Centro-Oeste"),
+        ("Plataforma MT", "Cuiabá", "MT", "Centro-Oeste"),
+        # Norte (Inclusão e garantia de dados)
+        ("Norte Atacadista PA", "Belém", "PA", "Norte"),
+        ("Polo Industrial AM", "Manaus", "AM", "Norte")
     ]
     cursor.executemany("INSERT INTO d_clientes (nome_cliente, cidade, estado, regiao) VALUES (?, ?, ?, ?);", clientes)
     conexao.commit()
 
-    # 4. Gerando 100 Notas Fiscais Estruturadas com Lógica de Negócio
-    segmentos = ["E-Commerce", "Varejo", "Indústria", "Agronegócio"]
+    # 4. Configurando as 6 Segmentações de Mercado Requeridas
+    segmentos = ["E-Commerce", "Varejo", "Indústria", "Agronegócio", "Medicamentos", "Alimentos"]
+    
     status_opcoes = ["Entregue No Prazo", "Atrasado", "Retido na Barreira Fiscal", "Extraviado"]
     gargalos_opcoes = {
         "Entregue No Prazo": "Nenhum Operacional",
@@ -89,21 +102,20 @@ def criar_e_povoar_banco():
         "Extraviado": "Sinistro / Roubo de Carga"
     }
 
-    random.seed(42) # Mantém os dados fixos e consistentes
+    random.seed(42)
     data_base = datetime(2026, 6, 1)
 
+    # Gerando as 100 Notas Fiscais distribuídas na nova estrutura de 15 estados
     for i in range(1, 101):
         nf = f"NF-2026-{i:03d}"
         id_transp = random.randint(1, 8)
-        id_clie = random.randint(1, 8)
+        id_clie = random.randint(1, 15) # Sorteia agora entre os 15 clientes/estados cadastrados
         seg = random.choice(segmentos)
         
-        # Datas lógicas
         d_emissao = data_base + timedelta(days=random.randint(0, 15))
         d_previsao = d_emissao + timedelta(days=random.randint(3, 7))
         
-        # Sorteando o status baseado em probabilidade real (65% no prazo, 35% com problemas)
-        sorteio_status = random.choices(status_opcoes, weights=[0.65, 0.20, 0.10, 0.05], k=1)[0]
+        sorteio_status = random.choices(status_opcoes, weights=[0.68, 0.18, 0.10, 0.04], k=1)[0]
         gargalo = gargalos_opcoes[sorteio_status]
         
         if sorteio_status == "Entregue No Prazo":
@@ -114,9 +126,8 @@ def criar_e_povoar_banco():
         valor_nf = round(random.uniform(5000, 120000), 2)
         peso = round(random.uniform(50, 4000), 2)
         
-        # Lógica de Auditoria de Frete (Algumas transportadoras cobram a mais de propósito)
         frete_tabela = round(valor_nf * random.uniform(0.02, 0.05), 2)
-        if random.random() > 0.75: # 25% de chance de erro de faturamento (frete estourado)
+        if random.random() > 0.75:
             frete_cobrado = round(frete_tabela + random.uniform(150, 1200), 2)
         else:
             frete_cobrado = frete_tabela
@@ -133,7 +144,7 @@ def criar_e_povoar_banco():
 
     conexao.commit()
     conexao.close()
-    print("Banco de dados expandido com 100 NFs, 8 transportadoras e estados cadastrado com sucesso!")
+    print("Banco de dados nacional atualizado com sucesso!")
 
 if __name__ == "__main__":
     criar_e_povoar_banco()
