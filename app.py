@@ -6,7 +6,7 @@ import os
 from datetime import datetime
 
 # ============================================
-# CONFIGURAÇÃO DA PÁGINA (SEMPRE PRIMEIRO)
+# CONFIGURAÇÃO DA PÁGINA
 # ============================================
 st.set_page_config(
     page_title="Torre de Controle Logística",
@@ -15,44 +15,34 @@ st.set_page_config(
 )
 
 # ============================================
-# DESATIVA TRADUÇÃO AUTOMÁTICA DO NAVEGADOR
+# MAPEAMENTO DE ESTADOS - COM PONTOS (EVITA TRADUÇÃO)
 # ============================================
-st.markdown("""
-    <meta name="google" content="notranslate">
-    <meta name="google-translate-custom" content="notranslate">
-    <meta http-equiv="Content-Language" content="pt-BR">
-    <style>
-        /* Remove o popup de tradução do Chrome */
-        .goog-te-banner-frame { display: none !important; }
-        #goog-gt-tt { display: none !important; }
-        .goog-tooltip { display: none !important; }
-        .goog-text-highlight { background-color: transparent !important; border: none !important; }
-        /* Remove o ícone de tradução */
-        .goog-te-gadget-icon { display: none !important; }
-        .goog-te-gadget-simple { display: none !important; }
-    </style>
-    <script>
-        // Força a não tradução
-        document.addEventListener('DOMContentLoaded', function() {
-            document.documentElement.lang = 'pt-BR';
-            // Remove o meta de tradução se existir
-            const meta = document.querySelector('meta[name="google"]');
-            if (meta) meta.remove();
-            // Adiciona o meta de não tradução
-            const newMeta = document.createElement('meta');
-            newMeta.name = 'google';
-            newMeta.content = 'notranslate';
-            document.head.appendChild(newMeta);
-        });
-    </script>
-""", unsafe_allow_html=True)
+ESTADOS_MAP = {
+    "SP": "S.P.",
+    "RJ": "R.J.",
+    "MG": "M.G.",
+    "ES": "E.S.",
+    "PR": "P.R.",
+    "SC": "S.C.",
+    "RS": "R.S.",
+    "BA": "B.A.",
+    "CE": "C.E.",
+    "PE": "P.E.",
+    "MA": "M.A.",
+    "GO": "G.O.",
+    "MT": "M.T.",
+    "PA": "P.A.",
+    "AM": "A.M."
+}
+
+# Mapeamento reverso para consultas no banco
+ESTADOS_REVERSE = {v: k for k, v in ESTADOS_MAP.items()}
 
 # ============================================
 # FORÇA A RECRIAÇÃO DO BANCO
 # ============================================
 db_path = "torre_controle_final.db"
 
-# Remove o banco antigo
 if os.path.exists(db_path):
     try:
         os.remove(db_path)
@@ -60,7 +50,6 @@ if os.path.exists(db_path):
     except Exception as e:
         print(f"⚠️ Erro ao remover: {e}")
 
-# Recria o banco
 try:
     import gerar_banco
     gerar_banco.criar_e_povoar_banco()
@@ -69,13 +58,6 @@ except Exception as e:
     print(f"❌ Erro ao recriar: {e}")
     st.error(f"❌ Erro ao criar banco: {e}")
     st.stop()
-
-# ============================================
-# TÍTULO
-# ============================================
-st.markdown("<h1 style='text-align: center;'>🛸 Torre de Performance Logística</h1>", unsafe_allow_html=True)
-st.markdown("<p style='text-align: center; color: gray;'>Solução Gerencial: Auditoria Automática de Fretes, Análise de SLA e Controle de Metas</p>", unsafe_allow_html=True)
-st.markdown("---")
 
 # ============================================
 # CARREGA OS DADOS
@@ -109,6 +91,11 @@ def carregar_dados():
     df = pd.read_sql_query(query, conexao)
     conexao.close()
     df['data_emissao'] = pd.to_datetime(df['data_emissao'])
+    
+    # ===== CONVERTE ESTADOS PARA EXIBIÇÃO =====
+    # Adiciona uma coluna com o estado "traduzido" para exibição
+    df['estado_exibicao'] = df['estado'].map(ESTADOS_MAP).fillna(df['estado'])
+    
     return df
 
 df_original = carregar_dados()
@@ -118,7 +105,14 @@ if df_original.empty:
     st.stop()
 
 # ============================================
-# FILTROS
+# TÍTULO
+# ============================================
+st.markdown("<h1 style='text-align: center;'>🛸 Torre de Performance Logística</h1>", unsafe_allow_html=True)
+st.markdown("<p style='text-align: center; color: gray;'>Solução Gerencial: Auditoria Automática de Fretes, Análise de SLA e Controle de Metas</p>", unsafe_allow_html=True)
+st.markdown("---")
+
+# ============================================
+# FILTROS - USANDO ESTADOS COM PONTOS
 # ============================================
 st.sidebar.header("🎯 Painel de Filtros Cruzados")
 
@@ -141,8 +135,12 @@ segmento_selecionado = st.sidebar.selectbox("Selecione o Segmento:", lista_segme
 lista_regioes = ["Todos"] + sorted(df_original["regiao"].unique())
 regiao_selecionada = st.sidebar.selectbox("Selecione a Região Geográfica:", lista_regioes)
 
-lista_estados = ["Todos"] + sorted(df_original["estado"].unique())
-estado_selecionado = st.sidebar.selectbox("Selecione o Estado de Destino:", lista_estados)
+# Estados com pontos (ex: S.P., R.J., etc.)
+lista_estados = ["Todos"] + sorted(df_original["estado_exibicao"].unique())
+estado_selecionado_exibicao = st.sidebar.selectbox("Selecione o Estado de Destino:", lista_estados)
+
+# Converte de volta para sigla para filtrar
+estado_selecionado = ESTADOS_REVERSE.get(estado_selecionado_exibicao, estado_selecionado_exibicao) if estado_selecionado_exibicao != "Todos" else "Todos"
 
 lista_status = ["Todos"] + sorted(df_original["status_entrega"].unique())
 status_selecionado = st.sidebar.selectbox("Status da Entrega:", lista_status)
@@ -221,13 +219,15 @@ else:
 st.markdown("---")
 
 # ============================================
-# GRÁFICOS
+# GRÁFICOS - USANDO ESTADOS COM PONTOS
 # ============================================
 st.subheader("📈 Volumetria e Distribuição de SLAs")
 graf1, graf2 = st.columns(2)
 
 with graf1:
-    df_estado = df_filtrado.groupby(['estado', 'status_entrega']).size().reset_index(name='quantidade')
+    # Usa estado_exibicao (com pontos) para o gráfico
+    df_estado = df_filtrado.groupby(['estado_exibicao', 'status_entrega']).size().reset_index(name='quantidade')
+    df_estado = df_estado.rename(columns={'estado_exibicao': 'estado'})
     fig_estado = px.bar(
         df_estado, x='estado', y='quantidade', color='status_entrega',
         title="Ocorrências Logísticas por Estado de Destino",
@@ -271,15 +271,20 @@ with graf4:
 st.markdown("---")
 
 # ============================================
-# TABELA FINAL
+# TABELA FINAL - USANDO ESTADOS COM PONTOS
 # ============================================
 st.subheader("📋 Detalhamento das Notas Fiscais e Ocorrências")
+
+# Cria uma cópia com estado_exibicao
+df_tabela = df_filtrado.copy()
+df_tabela['estado'] = df_tabela['estado_exibicao']
+
 colunas_exibicao = [
     "numero_nota_fiscal", "nome_transportadora", "nome_cliente", "estado",
     "regiao", "segmento_operacao", "data_emissao", "status_entrega", 
     "valor_nota_fiscal", "custo_frete_cobrado", "motivo_gargalo"
 ]
-st.dataframe(df_filtrado[colunas_exibicao], use_container_width=True)
+st.dataframe(df_tabela[colunas_exibicao], use_container_width=True)
 
 # ============================================
 # BOTÃO RECARREGAR
