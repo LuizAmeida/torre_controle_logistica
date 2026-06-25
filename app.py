@@ -4,20 +4,77 @@ import sqlite3
 import plotly.express as px
 import os
 from datetime import datetime
+import subprocess
+import sys
 
-# Automação: Força a exclusão física do arquivo local para obrigar a recriação limpa
-if os.path.exists("torre_controle_final.db"):
+# ========== DIAGNÓSTICO INICIAL ==========
+print("=== DIAGNÓSTICO INICIAL ===")
+print(f"Diretório atual: {os.getcwd()}")
+print(f"Arquivos no diretório: {os.listdir()}")
+
+# ========== SETUP FORÇADO DO BANCO ==========
+db_path = "torre_controle_final.db"
+
+# Remove banco antigo se existir
+if os.path.exists(db_path):
     try:
-        os.remove("torre_controle_final.db")
-    except Exception:
-        pass
+        os.remove(db_path)
+        print(f"✅ Banco antigo removido: {db_path}")
+    except Exception as e:
+        print(f"⚠️ Erro ao remover banco antigo: {e}")
 
-# Automação: Executa o script gerador para criar a nova base atualizada
+# Recria o banco do zero
 try:
     import gerar_banco
+    print("🔄 Executando gerar_banco.criar_e_povoar_banco()...")
     gerar_banco.criar_e_povoar_banco()
-except Exception:
-    pass
+    print("✅ Banco recriado com sucesso!")
+except Exception as e:
+    print(f"❌ Erro ao recriar banco: {e}")
+    # Tenta executar via subprocess como fallback
+    try:
+        print("🔄 Tentando fallback com subprocess...")
+        subprocess.run([sys.executable, "gerar_banco.py"], check=True, capture_output=False)
+        print("✅ Banco recriado via subprocess!")
+    except Exception as e2:
+        print(f"❌ Erro no fallback: {e2}")
+
+# Verifica se o banco foi criado
+if os.path.exists(db_path):
+    tamanho = os.path.getsize(db_path)
+    print(f"📊 Banco criado: {tamanho} bytes")
+    
+    # Verifica os dados
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+    
+    # Verifica tabelas
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
+    tabelas = [row[0] for row in cursor.fetchall()]
+    print(f"📋 Tabelas no banco: {tabelas}")
+    
+    # Verifica estados (PROBLEMA PRINCIPAL)
+    if 'd_clientes' in tabelas:
+        cursor.execute("SELECT DISTINCT estado FROM d_clientes ORDER BY estado;")
+        estados = [row[0] for row in cursor.fetchall()]
+        print(f"📍 Estados cadastrados: {estados}")
+        
+        cursor.execute("SELECT DISTINCT regiao FROM d_clientes ORDER BY regiao;")
+        regioes = [row[0] for row in cursor.fetchall()]
+        print(f"📍 Regiões cadastradas: {regioes}")
+        
+        cursor.execute("SELECT DISTINCT segmento_operacao FROM f_entregas ORDER BY segmento_operacao;")
+        segmentos = [row[0] for row in cursor.fetchall()]
+        print(f"📍 Segmentos cadastrados: {segmentos}")
+    
+    conn.close()
+else:
+    print("❌ Banco NÃO foi criado!")
+    st.error("⚠️ Banco de dados não foi criado. Verifique os logs.")
+    st.stop()
+
+print("=== FIM DIAGNÓSTICO ===")
+# ==========================================
 
 # Configuração da página executiva profissional
 st.set_page_config(page_title="Torre de Controle Logística", layout="wide")
@@ -29,36 +86,65 @@ st.markdown("---")
 # Carregamento estrito e direto do banco torre_controle_final.db com controle de expiração de cache
 @st.cache_data(ttl=1)
 def carregar_dados():
-    conexao = sqlite3.connect("torre_controle_final.db")
-    query = """
-        SELECT 
-            f.id_entrega,
-            f.numero_nota_fiscal,
-            t.nome_transportadora,
-            c.nome_cliente,
-            c.cidade,
-            c.estado,
-            c.regiao,
-            f.segmento_operacao,
-            f.data_emissao,
-            f.data_previsao_entrega,
-            f.data_entrega_real,
-            f.valor_nota_fiscal,
-            f.peso_kg,
-            f.custo_frete_tabela,
-            f.custo_frete_cobrado,
-            f.status_entrega,
-            f.motivo_gargalo
-        FROM f_entregas f
-        JOIN d_transportadoras t ON f.id_transportadora = t.id_transportadora
-        JOIN d_clientes c ON f.id_cliente = c.id_cliente
-    """
-    df = pd.read_sql_query(query, conexao)
-    conexao.close()
-    df['data_emissao'] = pd.to_datetime(df['data_emissao'])
-    return df
+    # Verifica se o banco existe antes de carregar
+    if not os.path.exists("torre_controle_final.db"):
+        st.error("⚠️ Banco de dados não encontrado!")
+        return pd.DataFrame()
+    
+    try:
+        conexao = sqlite3.connect("torre_controle_final.db")
+        query = """
+            SELECT 
+                f.id_entrega,
+                f.numero_nota_fiscal,
+                t.nome_transportadora,
+                c.nome_cliente,
+                c.cidade,
+                c.estado,
+                c.regiao,
+                f.segmento_operacao,
+                f.data_emissao,
+                f.data_previsao_entrega,
+                f.data_entrega_real,
+                f.valor_nota_fiscal,
+                f.peso_kg,
+                f.custo_frete_tabela,
+                f.custo_frete_cobrado,
+                f.status_entrega,
+                f.motivo_gargalo
+            FROM f_entregas f
+            JOIN d_transportadoras t ON f.id_transportadora = t.id_transportadora
+            JOIN d_clientes c ON f.id_cliente = c.id_cliente
+        """
+        df = pd.read_sql_query(query, conexao)
+        conexao.close()
+        
+        # Converte colunas de data
+        df['data_emissao'] = pd.to_datetime(df['data_emissao'])
+        
+        # VALIDAÇÃO: Verifica se há dados estranhos
+        estados_validos = ['AM', 'BA', 'CE', 'ES', 'GO', 'MA', 'MG', 'MT', 'PA', 'PE', 'PR', 'RJ', 'RS', 'SC', 'SP']
+        estados_encontrados = df['estado'].unique()
+        
+        for estado in estados_encontrados:
+            if estado not in estados_validos:
+                print(f"⚠️ ALERTA: Estado inválido encontrado: '{estado}'")
+                # Força a remoção de dados inválidos
+                df = df[df['estado'].isin(estados_validos)]
+                print(f"🔄 Removidos registros com estado inválido. Total restante: {len(df)}")
+        
+        return df
+        
+    except Exception as e:
+        st.error(f"❌ Erro ao carregar dados: {e}")
+        return pd.DataFrame()
 
 df_original = carregar_dados()
+
+# Verifica se o DataFrame está vazio
+if df_original.empty:
+    st.error("⚠️ Nenhum dado disponível para análise. Verifique o banco de dados.")
+    st.stop()
 
 # Construção do Painel de Filtros Cruzados com a Linha Temporal Integrada
 st.sidebar.header("🎯 Painel de Filtros Cruzados")
@@ -77,19 +163,20 @@ periodo_selecionado = st.sidebar.date_input(
 
 st.sidebar.markdown("---")
 
-lista_segmentos = ["Todos"] + sorted(list(df_original["segmento_operacao"].unique()))
+# Filtros com validação para evitar dados estranhos
+lista_segmentos = ["Todos"] + sorted([s for s in df_original["segmento_operacao"].unique() if s and str(s).strip()])
 segmento_selecionado = st.sidebar.selectbox("Selecione o Segmento:", lista_segmentos, key="sb_segmento")
 
-lista_regioes = ["Todos"] + sorted(list(df_original["regiao"].unique()))
+lista_regioes = ["Todos"] + sorted([r for r in df_original["regiao"].unique() if r and str(r).strip()])
 regiao_selecionada = st.sidebar.selectbox("Selecione a Região Geográfica:", lista_regioes, key="sb_regiao")
 
-lista_estados = ["Todos"] + sorted(list(df_original["estado"].unique()))
+lista_estados = ["Todos"] + sorted([e for e in df_original["estado"].unique() if e and str(e).strip() and len(str(e)) <= 2])
 estado_selecionado = st.sidebar.selectbox("Selecione o Estado de Destino:", lista_estados, key="sb_estado")
 
-lista_status = ["Todos"] + list(df_original["status_entrega"].unique())
+lista_status = ["Todos"] + [s for s in df_original["status_entrega"].unique() if s and str(s).strip()]
 status_selecionado = st.sidebar.selectbox("Status da Entrega:", lista_status, key="sb_status")
 
-lista_transportadoras = ["Todos"] + sorted(list(df_original["nome_transportadora"].unique()))
+lista_transportadoras = ["Todos"] + sorted([t for t in df_original["nome_transportadora"].unique() if t and str(t).strip()])
 transportadora_selecionada = st.sidebar.selectbox("Transportadora:", lista_transportadoras, key="sb_transportadora")
 
 # Processamento dinâmico dos filtros na memória
@@ -112,6 +199,11 @@ if status_selecionado != "Todos":
     df_filtrado = df_filtrado[df_filtrado["status_entrega"] == status_selecionado]
 if transportadora_selecionada != "Todos":
     df_filtrado = df_filtrado[df_filtrado["nome_transportadora"] == transportadora_selecionada]
+
+# Verifica se o DataFrame filtrado está vazio
+if df_filtrado.empty:
+    st.warning("⚠️ Nenhum dado encontrado com os filtros selecionados.")
+    st.stop()
 
 # Indicadores de Performance Operacional
 st.subheader("📊 Indicadores de Performance Operacional")
