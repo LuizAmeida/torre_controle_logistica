@@ -15,31 +15,61 @@ st.set_page_config(
 )
 
 # ============================================
-# BLOQUEIA TRADUÇÃO AUTOMÁTICA
+# CSS PERSONALIZADO PARA MELHORAR VISUALIZAÇÃO
 # ============================================
 st.markdown("""
-    <meta name="google" content="notranslate">
-    <meta name="google-translate-custom" content="notranslate">
-    <meta http-equiv="Content-Language" content="pt-BR">
     <style>
+        /* Bloqueia tradução */
         .goog-te-banner-frame { display: none !important; }
         #goog-gt-tt { display: none !important; }
         .goog-tooltip { display: none !important; }
         .goog-text-highlight { background: transparent !important; border: none !important; }
         .goog-te-gadget { display: none !important; }
         .goog-te-gadget-simple { display: none !important; }
+        
+        /* Melhora a visualização dos métricas */
+        [data-testid="metric-container"] {
+            width: 100% !important;
+            min-width: 120px !important;
+        }
+        
+        [data-testid="metric-container"] > div {
+            width: 100% !important;
+            overflow: visible !important;
+        }
+        
+        /* Diminui a fonte dos números para caber melhor */
+        [data-testid="metric-container"] [data-testid="stMetricValue"] {
+            font-size: 1.1rem !important;
+            font-weight: 700 !important;
+            white-space: nowrap !important;
+        }
+        
+        [data-testid="metric-container"] [data-testid="stMetricLabel"] {
+            font-size: 0.75rem !important;
+            white-space: normal !important;
+            word-wrap: break-word !important;
+            line-height: 1.2 !important;
+        }
+        
+        [data-testid="metric-container"] [data-testid="stMetricDelta"] {
+            font-size: 0.7rem !important;
+        }
+        
+        /* Ajusta para colunas menores em telas pequenas */
+        @media (max-width: 768px) {
+            [data-testid="metric-container"] [data-testid="stMetricValue"] {
+                font-size: 0.9rem !important;
+            }
+            [data-testid="metric-container"] [data-testid="stMetricLabel"] {
+                font-size: 0.65rem !important;
+            }
+        }
     </style>
-    <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            document.documentElement.lang = 'pt-BR';
-            const meta = document.querySelector('meta[name="google"]');
-            if (meta) meta.remove();
-            const newMeta = document.createElement('meta');
-            newMeta.name = 'google';
-            newMeta.content = 'notranslate';
-            document.head.appendChild(newMeta);
-        });
-    </script>
+    
+    <meta name="google" content="notranslate">
+    <meta name="google-translate-custom" content="notranslate">
+    <meta http-equiv="Content-Language" content="pt-BR">
 """, unsafe_allow_html=True)
 
 st.markdown("<h1 style='text-align: center;'>🚛 Torre de Performance Logística</h1>", unsafe_allow_html=True)
@@ -207,10 +237,11 @@ df_externa = df_filtrado[df_filtrado["tipo_operacao"] == "externa"] if not df_fi
 df_propria = df_filtrado[df_filtrado["tipo_operacao"] == "propria"] if not df_filtrado.empty else pd.DataFrame()
 
 # ============================================
-# INDICADORES GERAIS
+# INDICADORES GERAIS (com colunas mais largas)
 # ============================================
 st.subheader("📊 Indicadores Gerais de Performance")
 
+# Usa 5 colunas com largura igual
 col1, col2, col3, col4, col5 = st.columns(5)
 
 with col1:
@@ -254,8 +285,7 @@ with col1:
         percentual = (vazamento / df_externa["custo_frete_cobrado"].sum() * 100) if df_externa["custo_frete_cobrado"].sum() > 0 else 0
         st.metric(
             "Vazamento em Fretes", 
-            formatar_moeda(vazamento),
-            delta=f"{percentual:.1f}% do frete"
+            formatar_moeda(vazamento)
         )
     else:
         st.metric("Vazamento em Fretes", "R$ 0,00")
