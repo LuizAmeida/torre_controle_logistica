@@ -5,30 +5,23 @@ import plotly.express as px
 import os
 from datetime import datetime
 
-# --- FORÇAR APAGAR BANCO ANTIGO COM ERROS DE DIGITAÇÃO ---
-if os.path.exists("torre_controle_final.db"):
-    try:
-        os.remove("torre_controle_final.db")
-    except Exception:
-        pass
-
-# --- AUTOMAÇÃO: O app.py força a execução do fabricante de dados na nuvem ---
+# --- AUTOMAÇÃO: Força a criação do Banco V2 se ele não existir ---
 try:
     import gerar_banco
     gerar_banco.criar_e_povoar_banco()
-except Exception as erro_banco:
+except Exception:
     pass
 
-# Configuração da página executiva e profissional
+# Configuração da página executiva
 st.set_page_config(page_title="Torre de Controle Logística", layout="wide")
 
 st.markdown("<h1 style='text-align: center;'>🛸 Torre de Performance Logística</h1>", unsafe_allow_html=True)
 st.markdown("<p style='text-align: center; color: gray;'>Solução Gerencial: Auditoria Automática de Fretes, Análise de SLA e Controle de Metas</p>", unsafe_allow_html=True)
 st.markdown("---")
 
-# --- Conexão e Carregamento dos Dados ---
+# --- Conexão e Carregamento dos Dados apontando para o V2 ---
 def carregar_dados():
-    conexao = sqlite3.connect("torre_controle_final.db")
+    conexao = sqlite3.connect("torre_controle_v2.db")
     query = """
         SELECT 
             f.id_entrega,
@@ -95,7 +88,6 @@ transportadora_selecionada = st.sidebar.selectbox("Transportadora:", lista_trans
 # Aplicando as regras de filtros cruzados incluindo a inteligência de datas
 df_filtrado = df_original.copy()
 
-# Tratamento para garantir que o filtro de data não quebre caso o usuário selecione apenas uma data
 if isinstance(periodo_selecionado, tuple) and len(periodo_selecionado) == 2:
     data_inicio, data_fim = periodo_selecionado
     df_filtrado = df_filtrado[
@@ -115,7 +107,7 @@ if transportadora_selecionada != "Todos":
     df_filtrado = df_filtrado[df_filtrado["nome_transportadora"] == transportadora_selecionada]
 
 
-# --- Indicadores Comparativos de Eficiência (Métricas vs Metas de Mercado) ---
+# --- Indicadores Comparativos de Eficiência ---
 st.subheader("📊 Indicadores de Performance Operacional")
 col1, col2, col3, col4 = st.columns(4)
 
@@ -151,43 +143,17 @@ with col4:
 
 st.markdown("---")
 
-# --- Relatório Executivo de Margens de Nível de Serviço ---
+# --- Relatório Executivo ---
 if taxa_otif >= 95.0:
-    st.success(f"🏅 **Classificação de Mercado - Zona de Excelência:** O nível de serviço atual está em **{taxa_otif:.1f}%**, cumprindo as metas contratuais mais rígidas do mercado logístico.")
+    st.success(f"🏅 **Classificação de Mercado - Zona de Excelência:** O nível de serviço atual está em **{taxa_otif:.1f}%**, cumprindo as metas contratuais.")
 elif taxa_otif >= 85.0:
-    st.warning(f"⚠️ **Classificação de Mercado - Zona de Atenção:** O nível de serviço está em **{taxa_otif:.1f}%**. Existem pequenos desvios de processo que precisam ser revisados para evitar penalidades comerciais.")
+    st.warning(f"⚠️ **Classificação de Mercado - Zona de Atenção:** O nível de serviço está em **{taxa_otif:.1f}%**.")
 else:
-    st.error(f"🚨 **Classificação de Mercado - Zona Crítica:** O nível de serviço desabou para **{taxa_otif:.1f}%** (Abaixo do limite tolerável de 85%). Risco alto de atrito operacional e perda de clientes ativos.")
+    st.error(f"🚨 **Classificação de Mercado - Zona Crítica:** O nível de serviço desabou para **{taxa_otif:.1f}%**.")
 
 st.markdown("---")
 
-# --- Destaques Estratégicos Baseados em Processos ---
-st.subheader("💡 Destaques Estratégicos da Operação")
-col_pos, col_neg = st.columns(2)
-total_fora_prazo = total_entregas - entregas_no_prazo
-
-with col_pos:
-    st.markdown("<h4 style='color: #2ecc71;'>✅ Destaques Positivos</h4>", unsafe_allow_html=True)
-    if prejuizo_frete > 0:
-        st.write(f"• **Alvo de Auditoria:** Identificamos **R$ {prejuizo_frete:,.2f}** cobrados de forma indevida (acima do contrato). Esse montante está pronto para recuperação.")
-    else:
-        st.write("• **Compliance Financeiro:** Nenhuma transportadora parceira faturou valores acima das tabelas acordadas.")
-    regiao_top = df_filtrado[df_filtrado["status_entrega"] == "Entregue No Prazo"]["regiao"].value_counts()
-    if not regiao_top.empty:
-        st.write(f"• **Região Alta Performance:** O fluxo para a região **{regiao_top.index[0]}** é o destaque em regularidade de prazos do período.")
-
-with col_neg:
-    st.markdown("<h4 style='color: #e74c3c;'>❌ Destaques Negativos / Alertas</h4>", unsafe_allow_html=True)
-    if total_fora_prazo > 0:
-        st.write(f"• **Quebra de Nível de Serviço:** Constam **{total_fora_prazo} notas fiscais** com falhas ou retenções de prazo, impactando diretamente o índice de satisfação final.")
-    else:
-        st.write("• **Risco Zero de Atraso:** 100% das entregas selecionadas cumpriram rigorosamente os prazos contratuais.")
-    if prejuizo_frete > 0:
-        st.write(f"• **Distorção de Custo:** Vazamento de margem ativa identificado devido a divergências nas auditorias de frete.")
-
-st.markdown("---")
-
-# --- Gráficos Estruturados: Quebra por Estados e Distribuição de SLAs ---
+# --- Gráficos Estruturados ---
 st.subheader("📈 Volumetria e Distribuição de SLAs")
 graf1, graf2 = st.columns(2)
 
@@ -195,7 +161,7 @@ with graf1:
     df_estado = df_filtrado.groupby(['estado', 'status_entrega']).size().reset_index(name='quantidade')
     fig_estado = px.bar(
         df_estado, x='estado', y='quantidade', color='status_entrega',
-        title="Ocorrências Logísticas e Cumprimento de Prazos por Estado de Destino (Visão Macro)",
+        title="Ocorrências Logísticas por Estado de Destino (15 Estados)",
         labels={'estado': 'Estado', 'quantidade': 'Qtd Notas Fiscais'},
         barmode='group'
     )
@@ -211,7 +177,7 @@ with graf2:
         title_pizza = "Visão Geral de Status no Contexto Atual"
     else:
         df_pizza_dados = df_filtrado
-        title_pizza = "Distribuição Geral por Status de Entrega (Qualidade do SLA)"
+        title_pizza = "Distribuição Geral por Status de Entrega"
 
     df_pizza = df_pizza_dados["status_entrega"].value_counts().reset_index()
     df_pizza.columns = ["Status", "Quantidade"]
@@ -220,7 +186,7 @@ with graf2:
 
 st.markdown("---")
 
-# --- Gráficos de Parceiros e Auditoria de Contratos de Frete ---
+# --- Performance de Parceiros ---
 st.subheader("🚛 Performance de Parceiros e Auditoria de Custos")
 graf3, graf4 = st.columns(2)
 
@@ -228,8 +194,8 @@ with graf3:
     df_transp = df_filtrado.groupby(['nome_transportadora', 'status_entrega']).size().reset_index(name='entregas')
     fig_barra_transp = px.bar(
         df_transp, x='nome_transportadora', y='entregas', color='status_entrega',
-        title="Nível de Serviço (SLA) por Transportadora Parceira",
-        labels={'nome_transportadora': 'Transportadora', 'entregas': 'Quantidade de Viagens'},
+        title="Nível de Serviço (SLA) por Transportadora",
+        labels={'nome_transportadora': 'Transportadora', 'entregas': 'Quantidade'},
         barmode='stack'
     )
     st.plotly_chart(fig_barra_transp, use_container_width=True)
@@ -238,34 +204,17 @@ with graf4:
     df_custos = df_filtrado.groupby('segmento_operacao')[['custo_frete_tabela', 'custo_frete_cobrado']].sum().reset_index()
     df_custos_melt = df_custos.melt(id_vars='segmento_operacao', value_vars=['custo_frete_tabela', 'custo_frete_cobrado'],
                                     var_name='Tipo_Custo', value_name='Valor')
-    df_custos_melt['Tipo_Custo'] = df_custos_melt['Tipo_Custo'].map({'custo_frete_tabela': 'Frete Contratado (Tabela)', 'custo_frete_cobrado': 'Frete Real Cobrado'})
+    df_custos_melt['Tipo_Custo'] = df_custos_melt['Tipo_Custo'].map({'custo_frete_tabela': 'Frete Contratado', 'custo_frete_cobrado': 'Frete Real Cobrado'})
     fig_comparativo = px.bar(
         df_custos_melt, x='segmento_operacao', y='Valor', color='Tipo_Custo', barmode='group',
-        title="Auditoria Financeira: Frete Contratado vs Frete Real Cobrado por Canal",
-        labels={'segmento_operacao': 'Segmento Operacional', 'Valor': 'Montante em R$'}
+        title="Auditoria Financeira por Canal",
+        labels={'segmento_operacao': 'Segmento', 'Valor': 'Montante em R$'}
     )
     st.plotly_chart(fig_comparativo, use_container_width=True)
 
 st.markdown("---")
 
-# --- Diagnóstico Automatizado de Causa Raiz ---
-st.subheader("🧠 Diagnóstico Automatizado de Gargalos Logísticos")
-df_erros = df_filtrado[~df_filtrado["status_entrega"].isin(["Entregue No Prazo"])]
-
-if not df_erros.empty:
-    causa_raiz = df_erros["motivo_gargalo"].value_counts().idxmax()
-    frequencia_causa = df_erros["motivo_gargalo"].value_counts().max()
-    st.info(f"""
-        **Análise de Causa Raiz:** O principal gargalo operacional sob o cenário selecionado é **"{causa_raiz}"**, registrando **{frequencia_causa} incidentes** que penalizaram o nível de serviço. 
-        
-        *💡 **Retorno sobre o Investimento (ROI):** Esta inteligência mapeia o erro de processo imediatamente, eliminando auditorias manuais.*
-    """)
-else:
-    st.success("🎉 **Eficiência Total:** Nenhum desvio de fluxo ou gargalo operacional foi registrado sob as condições dos filtros atuais.")
-
-st.markdown("---")
-
-# --- Tabela de Dados Operacionais Completas ---
+# --- Tabela Final de Dados ---
 st.subheader("📋 Detalhamento das Notas Fiscais e Ocorrências")
 colunas_exibicao = [
     "numero_nota_fiscal", "nome_transportadora", "nome_cliente", "estado",
