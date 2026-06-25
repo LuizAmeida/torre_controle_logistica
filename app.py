@@ -15,24 +15,24 @@ st.set_page_config(
 )
 
 # ============================================
-# MAPEAMENTO DE ESTADOS - COM PONTOS (EVITA TRADUÇÃO)
+# MAPEAMENTO DE ESTADOS - NOME COMPLETO
 # ============================================
 ESTADOS_MAP = {
-    "SP": "S.P.",
-    "RJ": "R.J.",
-    "MG": "M.G.",
-    "ES": "E.S.",
-    "PR": "P.R.",
-    "SC": "S.C.",
-    "RS": "R.S.",
-    "BA": "B.A.",
-    "CE": "C.E.",
-    "PE": "P.E.",
-    "MA": "M.A.",
-    "GO": "G.O.",
-    "MT": "M.T.",
-    "PA": "P.A.",
-    "AM": "A.M."
+    "SP": "São Paulo",
+    "RJ": "Rio de Janeiro",
+    "MG": "Minas Gerais",
+    "ES": "Espírito Santo",
+    "PR": "Paraná",
+    "SC": "Santa Catarina",
+    "RS": "Rio Grande do Sul",
+    "BA": "Bahia",
+    "CE": "Ceará",
+    "PE": "Pernambuco",
+    "MA": "Maranhão",
+    "GO": "Goiás",
+    "MT": "Mato Grosso",
+    "PA": "Pará",
+    "AM": "Amazonas"
 }
 
 # Mapeamento reverso para consultas no banco
@@ -92,8 +92,7 @@ def carregar_dados():
     conexao.close()
     df['data_emissao'] = pd.to_datetime(df['data_emissao'])
     
-    # ===== CONVERTE ESTADOS PARA EXIBIÇÃO =====
-    # Adiciona uma coluna com o estado "traduzido" para exibição
+    # ===== CONVERTE ESTADOS PARA NOME COMPLETO =====
     df['estado_exibicao'] = df['estado'].map(ESTADOS_MAP).fillna(df['estado'])
     
     return df
@@ -112,7 +111,7 @@ st.markdown("<p style='text-align: center; color: gray;'>Solução Gerencial: Au
 st.markdown("---")
 
 # ============================================
-# FILTROS - USANDO ESTADOS COM PONTOS
+# FILTROS - USANDO NOME COMPLETO DOS ESTADOS
 # ============================================
 st.sidebar.header("🎯 Painel de Filtros Cruzados")
 
@@ -135,7 +134,7 @@ segmento_selecionado = st.sidebar.selectbox("Selecione o Segmento:", lista_segme
 lista_regioes = ["Todos"] + sorted(df_original["regiao"].unique())
 regiao_selecionada = st.sidebar.selectbox("Selecione a Região Geográfica:", lista_regioes)
 
-# Estados com pontos (ex: S.P., R.J., etc.)
+# Estados com nome completo
 lista_estados = ["Todos"] + sorted(df_original["estado_exibicao"].unique())
 estado_selecionado_exibicao = st.sidebar.selectbox("Selecione o Estado de Destino:", lista_estados)
 
@@ -219,21 +218,23 @@ else:
 st.markdown("---")
 
 # ============================================
-# GRÁFICOS - USANDO ESTADOS COM PONTOS
+# GRÁFICOS - USANDO NOME COMPLETO
 # ============================================
 st.subheader("📈 Volumetria e Distribuição de SLAs")
 graf1, graf2 = st.columns(2)
 
 with graf1:
-    # Usa estado_exibicao (com pontos) para o gráfico
+    # Usa estado_exibicao (nome completo)
     df_estado = df_filtrado.groupby(['estado_exibicao', 'status_entrega']).size().reset_index(name='quantidade')
     df_estado = df_estado.rename(columns={'estado_exibicao': 'estado'})
     fig_estado = px.bar(
         df_estado, x='estado', y='quantidade', color='status_entrega',
         title="Ocorrências Logísticas por Estado de Destino",
         labels={'estado': 'Estado', 'quantidade': 'Qtd Notas Fiscais'},
-        barmode='group'
+        barmode='group',
+        category_orders={'estado': sorted(df_estado['estado'].unique())}
     )
+    fig_estado.update_layout(xaxis={'tickangle': 45})
     st.plotly_chart(fig_estado, use_container_width=True)
 
 with graf2:
@@ -271,7 +272,7 @@ with graf4:
 st.markdown("---")
 
 # ============================================
-# TABELA FINAL - USANDO ESTADOS COM PONTOS
+# TABELA FINAL - USANDO NOME COMPLETO
 # ============================================
 st.subheader("📋 Detalhamento das Notas Fiscais e Ocorrências")
 
