@@ -19,9 +19,9 @@ st.markdown("<h1 style='text-align: center;'>🛸 Torre de Performance Logístic
 st.markdown("<p style='text-align: center; color: gray;'>Solução Gerencial: Auditoria Automática de Fretes, Análise de SLA e Controle de Metas</p>", unsafe_allow_html=True)
 st.markdown("---")
 
-# --- Conexão e Carregamento dos Dados apontando para o V2 ---
+# --- Conexão e Carregamento dos Dados apontando para o V3---
 def carregar_dados():
-    conexao = sqlite3.connect("torre_controle_v2.db")
+    conexao = sqlite3.connect("torre_controle_v3.db")
     query = """
         SELECT 
             f.id_entrega,
