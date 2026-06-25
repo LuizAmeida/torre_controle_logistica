@@ -4,35 +4,49 @@ import sqlite3
 import plotly.express as px
 import os
 from datetime import datetime
-import hashlib
-import time
+import subprocess
+import sys
 
 # ============================================
-# FORÇA A RECARGA COMPLETA - SEM CACHE
+# CONFIGURAÇÃO INICIAL
 # ============================================
-
-# Configuração da página
 st.set_page_config(page_title="Torre de Controle Logística", layout="wide")
 
-# Título
-st.markdown("<h1 style='text-align: center;'>🛸 Torre de Performance Logística</h1>", unsafe_allow_html=True)
-st.markdown("<p style='text-align: center; color: gray;'>Solução Gerencial: Auditoria Automática de Fretes, Análise de SLA e Controle de Metas</p>", unsafe_allow_html=True)
-st.markdown("---")
+# ============================================
+# RECRIA O BANCO DE DADOS (SE NECESSÁRIO)
+# ============================================
+db_path = "torre_controle_final.db"
+
+# Se o banco não existir, executa o gerador
+if not os.path.exists(db_path):
+    print("🔄 Banco não encontrado. Recriando...")
+    try:
+        import gerar_banco
+        gerar_banco.criar_e_povoar_banco()
+        print("✅ Banco recriado com sucesso!")
+    except Exception as e:
+        print(f"❌ Erro ao recriar banco: {e}")
+        # Fallback: executa via subprocess
+        try:
+            subprocess.run([sys.executable, "gerar_banco.py"], check=True, capture_output=False)
+            print("✅ Banco recriado via subprocess!")
+        except Exception as e2:
+            print(f"❌ Erro no fallback: {e2}")
+            st.error("❌ Não foi possível criar o banco de dados. Verifique os logs.")
+            st.stop()
 
 # ============================================
 # FUNÇÃO PARA CARREGAR DADOS - SEM CACHE
 # ============================================
-def carregar_dados_sem_cache():
-    """Carrega os dados diretamente do banco SEM NENHUM CACHE"""
+def carregar_dados():
+    """Carrega os dados diretamente do banco"""
     
-    # Verifica se o banco existe
-    if not os.path.exists("torre_controle_final.db"):
+    if not os.path.exists(db_path):
         st.error("❌ Banco de dados não encontrado!")
         return pd.DataFrame()
     
     try:
-        # Conecta e carrega
-        conexao = sqlite3.connect("torre_controle_final.db")
+        conexao = sqlite3.connect(db_path)
         query = """
             SELECT 
                 f.id_entrega,
@@ -59,23 +73,18 @@ def carregar_dados_sem_cache():
         df = pd.read_sql_query(query, conexao)
         conexao.close()
         
+        if df.empty:
+            st.warning("⚠️ O banco está vazio. Execute o gerador de dados.")
+            return df
+        
         # Converte data
         df['data_emissao'] = pd.to_datetime(df['data_emissao'])
         
-        # ===== FILTRO AGRESSIVO =====
+        # ===== FILTRO DE SEGURANÇA =====
         # Remove QUALQUER coisa que não seja estado brasileiro
         estados_validos = ['AM', 'BA', 'CE', 'ES', 'GO', 'MA', 'MG', 'MT', 'PA', 'PE', 'PR', 'RJ', 'RS', 'SC', 'SP']
         df = df[df['estado'].isin(estados_validos)]
         
-        # Remove caracteres estranhos
-        df['estado'] = df['estado'].astype(str).str.strip().str.upper()
-        df['estado'] = df['estado'].apply(lambda x: x if x in estados_validos else None)
-        df = df.dropna(subset=['estado'])
-        
-        # Força os tipos
-        df['estado'] = df['estado'].astype(str)
-        
-        # Log para diagnóstico
         print(f"✅ Dados carregados: {len(df)} registros")
         print(f"📍 Estados únicos: {sorted(df['estado'].unique())}")
         
@@ -86,22 +95,25 @@ def carregar_dados_sem_cache():
         return pd.DataFrame()
 
 # ============================================
-# CARREGA OS DADOS (FORÇADO, SEM CACHE)
+# TÍTULO
 # ============================================
+st.markdown("<h1 style='text-align: center;'>🛸 Torre de Performance Logística</h1>", unsafe_allow_html=True)
+st.markdown("<p style='text-align: center; color: gray;'>Solução Gerencial: Auditoria Automática de Fretes, Análise de SLA e Controle de Metas</p>", unsafe_allow_html=True)
+st.markdown("---")
 
-# Limpa qualquer cache existente
-st.cache_data.clear()
-
-# Carrega os dados
-df_original = carregar_dados_sem_cache()
+# ============================================
+# CARREGA OS DADOS
+# ============================================
+df_original = carregar_dados()
 
 # Verifica se carregou corretamente
 if df_original.empty:
     st.error("⚠️ Nenhum dado disponível. Verifique o banco de dados.")
+    st.info("💡 O banco será recriado automaticamente na próxima execução.")
     st.stop()
 
 # ============================================
-# PAINEL DE FILTROS (COM VALIDAÇÃO EXTREMA)
+# PAINEL DE FILTROS
 # ============================================
 st.sidebar.header("🎯 Painel de Filtros Cruzados")
 
@@ -120,37 +132,27 @@ periodo_selecionado = st.sidebar.date_input(
 
 st.sidebar.markdown("---")
 
-# ===== FILTROS COM VALIDAÇÃO EXTREMA =====
-
-# Segmentos - APENAS valores válidos
-segmentos_validos = ["Agronegócio", "Alimentos", "E-Commerce", "Indústria", "Medicamentos", "Varejo"]
-segmentos_existentes = [s for s in df_original["segmento_operacao"].unique() if s in segmentos_validos]
-lista_segmentos = ["Todos"] + sorted(segmentos_existentes)
+# ===== FILTROS =====
+# Segmentos
+lista_segmentos = ["Todos"] + sorted(df_original["segmento_operacao"].unique())
 segmento_selecionado = st.sidebar.selectbox("Selecione o Segmento:", lista_segmentos, key="sb_segmento")
 
-# Regiões - APENAS valores válidos
-regioes_validas = ["Centro-Oeste", "Nordeste", "Norte", "Sudeste", "Sul"]
-regioes_existentes = [r for r in df_original["regiao"].unique() if r in regioes_validas]
-lista_regioes = ["Todos"] + sorted(regioes_existentes)
+# Regiões
+lista_regioes = ["Todos"] + sorted(df_original["regiao"].unique())
 regiao_selecionada = st.sidebar.selectbox("Selecione a Região Geográfica:", lista_regioes, key="sb_regiao")
 
-# Estados - APENAS SIGLAS VÁLIDAS
+# Estados - apenas siglas válidas
 estados_validos = ['AM', 'BA', 'CE', 'ES', 'GO', 'MA', 'MG', 'MT', 'PA', 'PE', 'PR', 'RJ', 'RS', 'SC', 'SP']
 estados_existentes = [e for e in df_original["estado"].unique() if e in estados_validos]
 lista_estados = ["Todos"] + sorted(estados_existentes)
 estado_selecionado = st.sidebar.selectbox("Selecione o Estado de Destino:", lista_estados, key="sb_estado")
 
 # Status
-status_validos = ["Entregue No Prazo", "Atrasado", "Retido na Barreira Fiscal", "Extraviado"]
-status_existentes = [s for s in df_original["status_entrega"].unique() if s in status_validos]
-lista_status = ["Todos"] + sorted(status_existentes)
+lista_status = ["Todos"] + sorted(df_original["status_entrega"].unique())
 status_selecionado = st.sidebar.selectbox("Status da Entrega:", lista_status, key="sb_status")
 
 # Transportadoras
-transportadoras_validas = ["Alfa Transportes", "Beta Logística", "Gama Express", "Delta Cargas", 
-                          "Omega Trans", "Sigma Fretes", "Zeta Distribuidores", "Theta Operador Logístico"]
-transportadoras_existentes = [t for t in df_original["nome_transportadora"].unique() if t in transportadoras_validas]
-lista_transportadoras = ["Todos"] + sorted(transportadoras_existentes)
+lista_transportadoras = ["Todos"] + sorted(df_original["nome_transportadora"].unique())
 transportadora_selecionada = st.sidebar.selectbox("Transportadora:", lista_transportadoras, key="sb_transportadora")
 
 # ============================================
@@ -289,9 +291,9 @@ colunas_exibicao = [
 st.dataframe(df_filtrado[colunas_exibicao], use_container_width=True, key="st_df_final")
 
 # ============================================
-# BOTÃO PARA FORÇAR RECARGA
+# BOTÃO DE RECARGA
 # ============================================
 st.sidebar.markdown("---")
-if st.sidebar.button("🔄 FORÇAR RECARGA DOS DADOS", type="primary"):
+if st.sidebar.button("🔄 Recarregar Dados", type="primary"):
     st.cache_data.clear()
     st.rerun()
