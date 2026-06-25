@@ -1,26 +1,35 @@
 import sqlite3
-import pandas as pd
 import random
 from datetime import datetime, timedelta
+import os
 
 def criar_e_povoar_banco():
     """
     Cria e popula o banco de dados com dados oficiais.
-    Estados brasileiros com seus respectivos clientes e regiões.
     """
     
-    # Conexão com o banco (sobrescreve se existir)
-    conexao = sqlite3.connect("torre_controle_final.db")
+    db_path = "torre_controle_final.db"
+    
+    # Remove o banco se existir
+    if os.path.exists(db_path):
+        try:
+            os.remove(db_path)
+            print(f"🗑️ Banco removido: {db_path}")
+        except Exception as e:
+            print(f"⚠️ Erro ao remover banco: {e}")
+    
+    # Conexão
+    conexao = sqlite3.connect(db_path)
     cursor = conexao.cursor()
 
-    # ========== LIMPEZA TOTAL ==========
+    # ========== LIMPEZA ==========
     print("🔄 Limpando tabelas existentes...")
     cursor.execute("DROP TABLE IF EXISTS f_entregas;")
     cursor.execute("DROP TABLE IF EXISTS d_transportadoras;")
     cursor.execute("DROP TABLE IF EXISTS d_clientes;")
     print("✅ Tabelas removidas")
 
-    # ========== CRIAÇÃO DAS TABELAS ==========
+    # ========== CRIAÇÃO ==========
     print("🔄 Criando estrutura das tabelas...")
     
     cursor.execute("""
@@ -64,7 +73,7 @@ def criar_e_povoar_banco():
     """)
     print("✅ Estrutura criada")
 
-    # ========== POPULANDO TRANSPORTADORAS ==========
+    # ========== TRANSPORTADORAS ==========
     print("🔄 Cadastrando transportadoras...")
     transportadoras = [
         ("Alfa Transportes", "Lotação"),
@@ -79,31 +88,28 @@ def criar_e_povoar_banco():
     cursor.executemany("INSERT INTO d_transportadoras (nome_transportadora, tipo_transporte) VALUES (?, ?);", transportadoras)
     print(f"✅ {len(transportadoras)} transportadoras cadastradas")
 
-    # ========== POPULANDO CLIENTES (15 ESTADOS OFICIAIS) ==========
+    # ========== CLIENTES ==========
     print("🔄 Cadastrando clientes...")
+    
     clientes = [
-        # SUDESTE (4 estados)
+        # SUDESTE (4)
         ("CD São Paulo", "São Paulo", "SP", "Sudeste"),
         ("Filial Rio de Janeiro", "Rio de Janeiro", "RJ", "Sudeste"),
         ("Atacado Belo Horizonte", "Belo Horizonte", "MG", "Sudeste"),
         ("Operador Vitória", "Vitória", "ES", "Sudeste"),
-        
-        # SUL (3 estados)
+        # SUL (3)
         ("Cooperativa Curitiba", "Curitiba", "PR", "Sul"),
         ("Logística Joinville", "Joinville", "SC", "Sul"),
         ("Terminal Porto Alegre", "Porto Alegre", "RS", "Sul"),
-        
-        # NORDESTE (4 estados)
+        # NORDESTE (4)
         ("Distribuidora Salvador", "Salvador", "BA", "Nordeste"),
         ("Hub Fortaleza", "Fortaleza", "CE", "Nordeste"),
         ("Polo Recife", "Recife", "PE", "Nordeste"),
         ("Logística São Luís", "São Luís", "MA", "Nordeste"),
-        
-        # CENTRO-OESTE (2 estados)
+        # CENTRO-OESTE (2)
         ("Agro Goiânia", "Goiânia", "GO", "Centro-Oeste"),
         ("Plataforma Cuiabá", "Cuiabá", "MT", "Centro-Oeste"),
-        
-        # NORTE (2 estados)
+        # NORTE (2)
         ("Norte Belém", "Belém", "PA", "Norte"),
         ("Polo Manaus", "Manaus", "AM", "Norte")
     ]
@@ -115,17 +121,19 @@ def criar_e_povoar_banco():
     estados_cadastrados = [row[0] for row in cursor.fetchall()]
     print(f"📍 Estados cadastrados: {estados_cadastrados}")
     
-    estados_esperados = ['AM', 'BA', 'CE', 'ES', 'GO', 'MA', 'MG', 'MT', 'PA', 'PE', 'PR', 'RJ', 'RS', 'SC', 'SP']
-    if sorted(estados_cadastrados) == sorted(estados_esperados):
-        print("✅ Todos os 15 estados estão corretos!")
-    else:
-        print(f"⚠️ ATENÇÃO: Estados diferentes do esperado!")
-        print(f"   Esperados: {estados_esperados}")
-        print(f"   Encontrados: {estados_cadastrados}")
-
+    estados_validos = ['AM', 'BA', 'CE', 'ES', 'GO', 'MA', 'MG', 'MT', 'PA', 'PE', 'PR', 'RJ', 'RS', 'SC', 'SP']
+    
+    # VERIFICA SE TEM ALGO ERRADO
+    for estado in estados_cadastrados:
+        if estado not in estados_validos:
+            print(f"🚨 ERRO: Estado inválido encontrado: '{estado}'")
+            cursor.execute(f"DELETE FROM d_clientes WHERE estado = '{estado}';")
+            print(f"✅ Estado '{estado}' removido")
+    
     conexao.commit()
 
-    # ========== CONFIGURAÇÕES PARA GERAÇÃO DOS DADOS ==========
+    # ========== DADOS DAS ENTREGAS ==========
+    print("🔄 Gerando 100 notas fiscais...")
     segmentos = ["E-Commerce", "Varejo", "Indústria", "Agronegócio", "Medicamentos", "Alimentos"]
     status_opcoes = ["Entregue No Prazo", "Atrasado", "Retido na Barreira Fiscal", "Extraviado"]
     gargalos_opcoes = {
@@ -135,15 +143,13 @@ def criar_e_povoar_banco():
         "Extraviado": "Sinistro / Roubo de Carga"
     }
 
-    random.seed(42)  # Para garantir reprodutibilidade
+    random.seed(42)
     data_base = datetime(2026, 6, 1)
 
-    # ========== GERANDO 100 NOTAS FISCAIS ==========
-    print("🔄 Gerando 100 notas fiscais...")
     for i in range(1, 101):
         nf = f"NF-2026-{i:03d}"
         id_transp = random.randint(1, 8)
-        id_clie = random.randint(1, 15)  # 15 clientes (um por estado)
+        id_clie = random.randint(1, 15)
         seg = random.choice(segmentos)
         
         d_emissao = data_base + timedelta(days=random.randint(0, 15))
@@ -185,42 +191,48 @@ def criar_e_povoar_banco():
 
     print("✅ 100 notas fiscais geradas")
 
-    # ========== COMMIT E FECHAMENTO ==========
-    conexao.commit()
-    conexao.close()
-    print("✅ Banco de dados oficial limpo e gerado com sucesso!")
-
-    # ========== VERIFICAÇÃO FINAL ==========
-    # Reconecta para verificar os dados
-    conn_verif = sqlite3.connect("torre_controle_final.db")
-    cursor_verif = conn_verif.cursor()
+    # ========== VALIDAÇÃO FINAL ==========
+    print("\n🔍 VALIDAÇÃO FINAL...")
     
-    cursor_verif.execute("SELECT COUNT(*) FROM d_clientes")
-    total_clientes = cursor_verif.fetchone()[0]
-    print(f"📊 Total de clientes no banco: {total_clientes}")
-    
-    cursor_verif.execute("SELECT COUNT(*) FROM d_transportadoras")
-    total_transp = cursor_verif.fetchone()[0]
-    print(f"📊 Total de transportadoras: {total_transp}")
-    
-    cursor_verif.execute("SELECT COUNT(*) FROM f_entregas")
-    total_entregas = cursor_verif.fetchone()[0]
-    print(f"📊 Total de entregas: {total_entregas}")
-    
-    cursor_verif.execute("SELECT DISTINCT estado FROM d_clientes ORDER BY estado;")
-    estados_finais = [row[0] for row in cursor_verif.fetchall()]
+    # Verifica estados
+    cursor.execute("SELECT DISTINCT estado FROM d_clientes ORDER BY estado;")
+    estados_finais = [row[0] for row in cursor.fetchall()]
     print(f"📍 Estados finais no banco: {estados_finais}")
     
-    # VALIDAÇÃO CRÍTICA: Verifica se há dados estranhos
+    # Verifica se todos os estados são válidos
     estados_validos = ['AM', 'BA', 'CE', 'ES', 'GO', 'MA', 'MG', 'MT', 'PA', 'PE', 'PR', 'RJ', 'RS', 'SC', 'SP']
     for estado in estados_finais:
         if estado not in estados_validos:
             print(f"🚨 ERRO CRÍTICO: Estado inválido encontrado: '{estado}'")
-            print("   Isso causará problemas nos filtros do Streamlit!")
+            cursor.execute(f"DELETE FROM d_clientes WHERE estado = '{estado}';")
     
-    conn_verif.close()
+    # Verifica novamente
+    cursor.execute("SELECT DISTINCT estado FROM d_clientes ORDER BY estado;")
+    estados_finais = [row[0] for row in cursor.fetchall()]
+    print(f"✅ Estados FINAIS após validação: {estados_finais}")
     
-    return True
+    # Verifica se são exatamente 15 estados
+    if len(estados_finais) == 15:
+        print("✅ Todos os 15 estados estão corretos!")
+    else:
+        print(f"⚠️ ATENÇÃO: Tem {len(estados_finais)} estados, esperado 15")
+        print(f"   Estados: {estados_finais}")
+
+    # Verifica se as tabelas existem
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
+    tabelas = [row[0] for row in cursor.fetchall()]
+    print(f"📋 Tabelas no banco: {tabelas}")
+    
+    if 'f_entregas' not in tabelas:
+        print("🚨 ERRO CRÍTICO: Tabela f_entregas não foi criada!")
+    else:
+        cursor.execute("SELECT COUNT(*) FROM f_entregas;")
+        total = cursor.fetchone()[0]
+        print(f"✅ Total de entregas: {total}")
+
+    conexao.commit()
+    conexao.close()
+    print("✅ Banco de dados gerado com sucesso!")
 
 if __name__ == "__main__":
     criar_e_povoar_banco()
