@@ -4,181 +4,34 @@ import sqlite3
 import plotly.express as px
 import os
 from datetime import datetime
-import sys
+import hashlib
+import time
 
 # ============================================
-# DIAGNÓSTICO RADICAL - ANTES DE TUDO
-# ============================================
-print("=" * 60)
-print("DIAGNÓSTICO COMPLETO DO BANCO DE DADOS")
-print("=" * 60)
-
-db_path = "torre_controle_final.db"
-
-# 1. LISTA TODOS OS ARQUIVOS DO DIRETÓRIO
-print(f"\n📁 Arquivos no diretório {os.getcwd()}:")
-for arquivo in os.listdir('.'):
-    if os.path.isfile(arquivo):
-        print(f"  - {arquivo} ({os.path.getsize(arquivo)} bytes)")
-
-# 2. VERIFICA O BANCO
-print(f"\n📊 Verificando banco: {db_path}")
-if os.path.exists(db_path):
-    print(f"  ✅ Banco encontrado - Tamanho: {os.path.getsize(db_path)} bytes")
-    
-    # Lê diretamente do banco SEM usar pandas
-    conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
-    
-    # Lista todas as tabelas
-    cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
-    tabelas = cursor.fetchall()
-    print(f"\n  📋 Tabelas encontradas: {[t[0] for t in tabelas]}")
-    
-    # Verifica cada tabela
-    for tabela in tabelas:
-        nome = tabela[0]
-        cursor.execute(f"SELECT COUNT(*) FROM {nome}")
-        count = cursor.fetchone()[0]
-        print(f"    - {nome}: {count} registros")
-        
-        # Mostra os primeiros registros de cada tabela
-        if count > 0 and count <= 5:
-            cursor.execute(f"SELECT * FROM {nome}")
-            amostra = cursor.fetchall()
-            print(f"      Amostra: {amostra}")
-    
-    # VERIFICA ESPECIFICAMENTE A TABELA d_clientes
-    print("\n  🔍 VERIFICANDO d_clientes (PROBLEMA):")
-    cursor.execute("SELECT id_cliente, nome_cliente, cidade, estado, regiao FROM d_clientes ORDER BY estado;")
-    clientes = cursor.fetchall()
-    print(f"    Total de clientes: {len(clientes)}")
-    for cliente in clientes:
-        print(f"    ID: {cliente[0]} | Nome: {cliente[1]} | Cidade: {cliente[2]} | Estado: '{cliente[3]}' | Região: {cliente[4]}")
-    
-    # VERIFICA SE HÁ ESTADOS ESTRANHOS
-    cursor.execute("SELECT DISTINCT estado FROM d_clientes;")
-    estados = [row[0] for row in cursor.fetchall()]
-    print(f"\n  📍 ESTADOS ENCONTRADOS: {estados}")
-    
-    estados_validos = ['AM', 'BA', 'CE', 'ES', 'GO', 'MA', 'MG', 'MT', 'PA', 'PE', 'PR', 'RJ', 'RS', 'SC', 'SP']
-    for estado in estados:
-        if estado not in estados_validos:
-            print(f"  🚨 ESTADO INVÁLIDO DETECTADO: '{estado}'")
-    
-    conn.close()
-else:
-    print("  ❌ Banco NÃO encontrado!")
-
-print("=" * 60)
-print("FIM DO DIAGNÓSTICO")
-print("=" * 60)
-
-# ============================================
-# CONTINUAÇÃO DO SEU CÓDIGO ORIGINAL
+# FORÇA A RECARGA COMPLETA - SEM CACHE
 # ============================================
 
-# Remove as linhas antigas que tentavam recriar o banco
-# if os.path.exists("torre_controle_final.db"):  <-- COMENTE OU REMOVA ISSO
-#     try:
-#         os.remove("torre_controle_final.db")
-#     except Exception:
-#         pass
-
-# try:  <-- COMENTE OU REMOVA ISSO
-#     import gerar_banco
-#     gerar_banco.criar_e_povoar_banco()
-# except Exception:
-#     pass
-
-# Configuração da página executiva profissional
+# Configuração da página
 st.set_page_config(page_title="Torre de Controle Logística", layout="wide")
 
-# ========== DIAGNÓSTICO INICIAL ==========
-print("=== DIAGNÓSTICO INICIAL ===")
-print(f"Diretório atual: {os.getcwd()}")
-print(f"Arquivos no diretório: {os.listdir()}")
-
-# ========== SETUP FORÇADO DO BANCO ==========
-db_path = "torre_controle_final.db"
-
-# Remove banco antigo se existir
-if os.path.exists(db_path):
-    try:
-        os.remove(db_path)
-        print(f"✅ Banco antigo removido: {db_path}")
-    except Exception as e:
-        print(f"⚠️ Erro ao remover banco antigo: {e}")
-
-# Recria o banco do zero
-try:
-    import gerar_banco
-    print("🔄 Executando gerar_banco.criar_e_povoar_banco()...")
-    gerar_banco.criar_e_povoar_banco()
-    print("✅ Banco recriado com sucesso!")
-except Exception as e:
-    print(f"❌ Erro ao recriar banco: {e}")
-    # Tenta executar via subprocess como fallback
-    try:
-        print("🔄 Tentando fallback com subprocess...")
-        subprocess.run([sys.executable, "gerar_banco.py"], check=True, capture_output=False)
-        print("✅ Banco recriado via subprocess!")
-    except Exception as e2:
-        print(f"❌ Erro no fallback: {e2}")
-
-# Verifica se o banco foi criado
-if os.path.exists(db_path):
-    tamanho = os.path.getsize(db_path)
-    print(f"📊 Banco criado: {tamanho} bytes")
-    
-    # Verifica os dados
-    conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
-    
-    # Verifica tabelas
-    cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
-    tabelas = [row[0] for row in cursor.fetchall()]
-    print(f"📋 Tabelas no banco: {tabelas}")
-    
-    # Verifica estados (PROBLEMA PRINCIPAL)
-    if 'd_clientes' in tabelas:
-        cursor.execute("SELECT DISTINCT estado FROM d_clientes ORDER BY estado;")
-        estados = [row[0] for row in cursor.fetchall()]
-        print(f"📍 Estados cadastrados: {estados}")
-        
-        cursor.execute("SELECT DISTINCT regiao FROM d_clientes ORDER BY regiao;")
-        regioes = [row[0] for row in cursor.fetchall()]
-        print(f"📍 Regiões cadastradas: {regioes}")
-        
-        cursor.execute("SELECT DISTINCT segmento_operacao FROM f_entregas ORDER BY segmento_operacao;")
-        segmentos = [row[0] for row in cursor.fetchall()]
-        print(f"📍 Segmentos cadastrados: {segmentos}")
-    
-    conn.close()
-else:
-    print("❌ Banco NÃO foi criado!")
-    st.error("⚠️ Banco de dados não foi criado. Verifique os logs.")
-    st.stop()
-
-print("=== FIM DIAGNÓSTICO ===")
-# ==========================================
-
-# Configuração da página executiva profissional
-st.set_page_config(page_title="Torre de Controle Logística", layout="wide")
-
+# Título
 st.markdown("<h1 style='text-align: center;'>🛸 Torre de Performance Logística</h1>", unsafe_allow_html=True)
 st.markdown("<p style='text-align: center; color: gray;'>Solução Gerencial: Auditoria Automática de Fretes, Análise de SLA e Controle de Metas</p>", unsafe_allow_html=True)
 st.markdown("---")
 
-# Carregamento estrito e direto do banco torre_controle_final.db com controle de expiração de cache
-@st.cache_data(ttl=0, show_spinner=False)  # ttl=0 força recarregar sempre
-def carregar_dados():
-    # Verifica se o banco existe antes de carregar
+# ============================================
+# FUNÇÃO PARA CARREGAR DADOS - SEM CACHE
+# ============================================
+def carregar_dados_sem_cache():
+    """Carrega os dados diretamente do banco SEM NENHUM CACHE"""
+    
+    # Verifica se o banco existe
     if not os.path.exists("torre_controle_final.db"):
-        st.error("⚠️ Banco de dados não encontrado!")
+        st.error("❌ Banco de dados não encontrado!")
         return pd.DataFrame()
     
     try:
+        # Conecta e carrega
         conexao = sqlite3.connect("torre_controle_final.db")
         query = """
             SELECT 
@@ -206,19 +59,25 @@ def carregar_dados():
         df = pd.read_sql_query(query, conexao)
         conexao.close()
         
-        # Converte colunas de data
+        # Converte data
         df['data_emissao'] = pd.to_datetime(df['data_emissao'])
         
-        # VALIDAÇÃO: Verifica se há dados estranhos
+        # ===== FILTRO AGRESSIVO =====
+        # Remove QUALQUER coisa que não seja estado brasileiro
         estados_validos = ['AM', 'BA', 'CE', 'ES', 'GO', 'MA', 'MG', 'MT', 'PA', 'PE', 'PR', 'RJ', 'RS', 'SC', 'SP']
-        estados_encontrados = df['estado'].unique()
+        df = df[df['estado'].isin(estados_validos)]
         
-        for estado in estados_encontrados:
-            if estado not in estados_validos:
-                print(f"⚠️ ALERTA: Estado inválido encontrado: '{estado}'")
-                # Força a remoção de dados inválidos
-                df = df[df['estado'].isin(estados_validos)]
-                print(f"🔄 Removidos registros com estado inválido. Total restante: {len(df)}")
+        # Remove caracteres estranhos
+        df['estado'] = df['estado'].astype(str).str.strip().str.upper()
+        df['estado'] = df['estado'].apply(lambda x: x if x in estados_validos else None)
+        df = df.dropna(subset=['estado'])
+        
+        # Força os tipos
+        df['estado'] = df['estado'].astype(str)
+        
+        # Log para diagnóstico
+        print(f"✅ Dados carregados: {len(df)} registros")
+        print(f"📍 Estados únicos: {sorted(df['estado'].unique())}")
         
         return df
         
@@ -226,16 +85,27 @@ def carregar_dados():
         st.error(f"❌ Erro ao carregar dados: {e}")
         return pd.DataFrame()
 
-df_original = carregar_dados()
+# ============================================
+# CARREGA OS DADOS (FORÇADO, SEM CACHE)
+# ============================================
 
-# Verifica se o DataFrame está vazio
+# Limpa qualquer cache existente
+st.cache_data.clear()
+
+# Carrega os dados
+df_original = carregar_dados_sem_cache()
+
+# Verifica se carregou corretamente
 if df_original.empty:
-    st.error("⚠️ Nenhum dado disponível para análise. Verifique o banco de dados.")
+    st.error("⚠️ Nenhum dado disponível. Verifique o banco de dados.")
     st.stop()
 
-# Construção do Painel de Filtros Cruzados com a Linha Temporal Integrada
+# ============================================
+# PAINEL DE FILTROS (COM VALIDAÇÃO EXTREMA)
+# ============================================
 st.sidebar.header("🎯 Painel de Filtros Cruzados")
 
+# Período
 data_minima = df_original["data_emissao"].min().date()
 data_maxima = df_original["data_emissao"].max().date()
 
@@ -250,23 +120,42 @@ periodo_selecionado = st.sidebar.date_input(
 
 st.sidebar.markdown("---")
 
-# Filtros com validação para evitar dados estranhos
-lista_segmentos = ["Todos"] + sorted([s for s in df_original["segmento_operacao"].unique() if s and str(s).strip()])
+# ===== FILTROS COM VALIDAÇÃO EXTREMA =====
+
+# Segmentos - APENAS valores válidos
+segmentos_validos = ["Agronegócio", "Alimentos", "E-Commerce", "Indústria", "Medicamentos", "Varejo"]
+segmentos_existentes = [s for s in df_original["segmento_operacao"].unique() if s in segmentos_validos]
+lista_segmentos = ["Todos"] + sorted(segmentos_existentes)
 segmento_selecionado = st.sidebar.selectbox("Selecione o Segmento:", lista_segmentos, key="sb_segmento")
 
-lista_regioes = ["Todos"] + sorted([r for r in df_original["regiao"].unique() if r and str(r).strip()])
+# Regiões - APENAS valores válidos
+regioes_validas = ["Centro-Oeste", "Nordeste", "Norte", "Sudeste", "Sul"]
+regioes_existentes = [r for r in df_original["regiao"].unique() if r in regioes_validas]
+lista_regioes = ["Todos"] + sorted(regioes_existentes)
 regiao_selecionada = st.sidebar.selectbox("Selecione a Região Geográfica:", lista_regioes, key="sb_regiao")
 
-lista_estados = ["Todos"] + sorted([e for e in df_original["estado"].unique() if e and str(e).strip() and len(str(e)) <= 2])
+# Estados - APENAS SIGLAS VÁLIDAS
+estados_validos = ['AM', 'BA', 'CE', 'ES', 'GO', 'MA', 'MG', 'MT', 'PA', 'PE', 'PR', 'RJ', 'RS', 'SC', 'SP']
+estados_existentes = [e for e in df_original["estado"].unique() if e in estados_validos]
+lista_estados = ["Todos"] + sorted(estados_existentes)
 estado_selecionado = st.sidebar.selectbox("Selecione o Estado de Destino:", lista_estados, key="sb_estado")
 
-lista_status = ["Todos"] + [s for s in df_original["status_entrega"].unique() if s and str(s).strip()]
+# Status
+status_validos = ["Entregue No Prazo", "Atrasado", "Retido na Barreira Fiscal", "Extraviado"]
+status_existentes = [s for s in df_original["status_entrega"].unique() if s in status_validos]
+lista_status = ["Todos"] + sorted(status_existentes)
 status_selecionado = st.sidebar.selectbox("Status da Entrega:", lista_status, key="sb_status")
 
-lista_transportadoras = ["Todos"] + sorted([t for t in df_original["nome_transportadora"].unique() if t and str(t).strip()])
+# Transportadoras
+transportadoras_validas = ["Alfa Transportes", "Beta Logística", "Gama Express", "Delta Cargas", 
+                          "Omega Trans", "Sigma Fretes", "Zeta Distribuidores", "Theta Operador Logístico"]
+transportadoras_existentes = [t for t in df_original["nome_transportadora"].unique() if t in transportadoras_validas]
+lista_transportadoras = ["Todos"] + sorted(transportadoras_existentes)
 transportadora_selecionada = st.sidebar.selectbox("Transportadora:", lista_transportadoras, key="sb_transportadora")
 
-# Processamento dinâmico dos filtros na memória
+# ============================================
+# APLICA FILTROS
+# ============================================
 df_filtrado = df_original.copy()
 
 if isinstance(periodo_selecionado, tuple) and len(periodo_selecionado) == 2:
@@ -287,12 +176,9 @@ if status_selecionado != "Todos":
 if transportadora_selecionada != "Todos":
     df_filtrado = df_filtrado[df_filtrado["nome_transportadora"] == transportadora_selecionada]
 
-# Verifica se o DataFrame filtrado está vazio
-if df_filtrado.empty:
-    st.warning("⚠️ Nenhum dado encontrado com os filtros selecionados.")
-    st.stop()
-
-# Indicadores de Performance Operacional
+# ============================================
+# INDICADORES
+# ============================================
 st.subheader("📊 Indicadores de Performance Operacional")
 col1, col2, col3, col4 = st.columns(4)
 
@@ -328,6 +214,7 @@ with col4:
 
 st.markdown("---")
 
+# Classificação
 if taxa_otif >= 95.0:
     st.success(f"🏅 **Classificação de Mercado - Zona de Excelência:** O nível de serviço atual está em **{taxa_otif:.1f}%**.")
 elif taxa_otif >= 85.0:
@@ -337,7 +224,9 @@ else:
 
 st.markdown("---")
 
-# Bloco Gráfico 1 e 2
+# ============================================
+# GRÁFICOS
+# ============================================
 st.subheader("📈 Volumetria e Distribuição de SLAs")
 graf1, graf2 = st.columns(2)
 
@@ -359,7 +248,9 @@ with graf2:
 
 st.markdown("---")
 
-# Bloco Gráfico 3 e 4
+# ============================================
+# GRÁFICOS 3 e 4
+# ============================================
 st.subheader("🚛 Performance de Parceiros e Auditoria de Custos")
 graf3, graf4 = st.columns(2)
 
@@ -386,7 +277,9 @@ with graf4:
 
 st.markdown("---")
 
-# Tabela Operacional de Detalhamento
+# ============================================
+# TABELA FINAL
+# ============================================
 st.subheader("📋 Detalhamento das Notas Fiscais e Ocorrências")
 colunas_exibicao = [
     "numero_nota_fiscal", "nome_transportadora", "nome_cliente", "estado",
@@ -394,3 +287,11 @@ colunas_exibicao = [
     "valor_nota_fiscal", "custo_frete_cobrado", "motivo_gargalo"
 ]
 st.dataframe(df_filtrado[colunas_exibicao], use_container_width=True, key="st_df_final")
+
+# ============================================
+# BOTÃO PARA FORÇAR RECARGA
+# ============================================
+st.sidebar.markdown("---")
+if st.sidebar.button("🔄 FORÇAR RECARGA DOS DADOS", type="primary"):
+    st.cache_data.clear()
+    st.rerun()
