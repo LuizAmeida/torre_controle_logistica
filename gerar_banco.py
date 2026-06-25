@@ -4,10 +4,11 @@ import random
 from datetime import datetime, timedelta
 
 def criar_e_povoar_banco():
-    conexao = sqlite3.connect("torre_controle_final.db")
+    # ALTERAÇÃO CRÍTICA: Mudança de nome do arquivo para forçar um banco 100% novo
+    conexao = sqlite3.connect("torre_controle_v2.db")
     cursor = conexao.cursor()
 
-    # 1. Limpeza e Recriação das Tabelas
+    # 1. Limpeza Absoluta das Tabelas
     cursor.execute("DROP TABLE IF EXISTS f_entregas;")
     cursor.execute("DROP TABLE IF EXISTS d_transportadoras;")
     cursor.execute("DROP TABLE IF EXISTS d_clientes;")
@@ -52,7 +53,7 @@ def criar_e_povoar_banco():
         );
     """)
 
-    # 2. Inserindo 8 Transportadoras Parceiras
+    # 2. Cadastro de Transportadoras
     transportadoras = [
         ("Alfa Transportes", "Lotação"),
         ("Beta Logística", "Fracionado"),
@@ -65,7 +66,7 @@ def criar_e_povoar_banco():
     ]
     cursor.executemany("INSERT INTO d_transportadoras (nome_transportadora, tipo_transporte) VALUES (?, ?);", transportadoras)
 
-    # 3. CORREÇÃO CRÍTICA: Alinhamento exato das colunas (nome, cidade, estado, regiao)
+    # 3. Mapeamento Rigoroso de Clientes (Apenas as siglas oficiais do Brasil)
     clientes = [
         # Sudeste
         ("CD São Paulo", "São Paulo", "SP", "Sudeste"),
@@ -88,10 +89,10 @@ def criar_e_povoar_banco():
         ("Norte Belém", "Belém", "PA", "Norte"),
         ("Polo Manaus", "Manaus", "AM", "Norte")
     ]
-    cursor.executemany("INSERT INTO d_clientes (nome_cliente, cidade, estado, regiao) VALUES (?, ?, ?, ?);", clientes)
+    cursor.executemany("INSERT INTO d_clientes (nome_cliente, city, estado, regiao) VALUES (?, ?, ?, ?);".replace("city", "cidade"), clientes)
     conexao.commit()
 
-    # 4. Configurando as 6 Segmentações de Mercado Requeridas
+    # 4. Segmentações de Mercado
     segmentos = ["E-Commerce", "Varejo", "Indústria", "Agronegócio", "Medicamentos", "Alimentos"]
     
     status_opcoes = ["Entregue No Prazo", "Atrasado", "Retido na Barreira Fiscal", "Extraviado"]
@@ -105,7 +106,6 @@ def criar_e_povoar_banco():
     random.seed(42)
     data_base = datetime(2026, 6, 1)
 
-    # Gerando as 100 Notas Fiscais mapeadas rigorosamente de 1 a 15
     for i in range(1, 101):
         nf = f"NF-2026-{i:03d}"
         id_transp = random.randint(1, 8)
@@ -144,7 +144,7 @@ def criar_e_povoar_banco():
 
     conexao.commit()
     conexao.close()
-    print("Banco de dados nacional alinhado com sucesso!")
+    print("Novo Banco V2 gerado com sucesso!")
 
 if __name__ == "__main__":
     criar_e_povoar_banco()
