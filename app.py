@@ -4,8 +4,95 @@ import sqlite3
 import plotly.express as px
 import os
 from datetime import datetime
-import subprocess
 import sys
+
+# ============================================
+# DIAGNÓSTICO RADICAL - ANTES DE TUDO
+# ============================================
+print("=" * 60)
+print("DIAGNÓSTICO COMPLETO DO BANCO DE DADOS")
+print("=" * 60)
+
+db_path = "torre_controle_final.db"
+
+# 1. LISTA TODOS OS ARQUIVOS DO DIRETÓRIO
+print(f"\n📁 Arquivos no diretório {os.getcwd()}:")
+for arquivo in os.listdir('.'):
+    if os.path.isfile(arquivo):
+        print(f"  - {arquivo} ({os.path.getsize(arquivo)} bytes)")
+
+# 2. VERIFICA O BANCO
+print(f"\n📊 Verificando banco: {db_path}")
+if os.path.exists(db_path):
+    print(f"  ✅ Banco encontrado - Tamanho: {os.path.getsize(db_path)} bytes")
+    
+    # Lê diretamente do banco SEM usar pandas
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+    
+    # Lista todas as tabelas
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
+    tabelas = cursor.fetchall()
+    print(f"\n  📋 Tabelas encontradas: {[t[0] for t in tabelas]}")
+    
+    # Verifica cada tabela
+    for tabela in tabelas:
+        nome = tabela[0]
+        cursor.execute(f"SELECT COUNT(*) FROM {nome}")
+        count = cursor.fetchone()[0]
+        print(f"    - {nome}: {count} registros")
+        
+        # Mostra os primeiros registros de cada tabela
+        if count > 0 and count <= 5:
+            cursor.execute(f"SELECT * FROM {nome}")
+            amostra = cursor.fetchall()
+            print(f"      Amostra: {amostra}")
+    
+    # VERIFICA ESPECIFICAMENTE A TABELA d_clientes
+    print("\n  🔍 VERIFICANDO d_clientes (PROBLEMA):")
+    cursor.execute("SELECT id_cliente, nome_cliente, cidade, estado, regiao FROM d_clientes ORDER BY estado;")
+    clientes = cursor.fetchall()
+    print(f"    Total de clientes: {len(clientes)}")
+    for cliente in clientes:
+        print(f"    ID: {cliente[0]} | Nome: {cliente[1]} | Cidade: {cliente[2]} | Estado: '{cliente[3]}' | Região: {cliente[4]}")
+    
+    # VERIFICA SE HÁ ESTADOS ESTRANHOS
+    cursor.execute("SELECT DISTINCT estado FROM d_clientes;")
+    estados = [row[0] for row in cursor.fetchall()]
+    print(f"\n  📍 ESTADOS ENCONTRADOS: {estados}")
+    
+    estados_validos = ['AM', 'BA', 'CE', 'ES', 'GO', 'MA', 'MG', 'MT', 'PA', 'PE', 'PR', 'RJ', 'RS', 'SC', 'SP']
+    for estado in estados:
+        if estado not in estados_validos:
+            print(f"  🚨 ESTADO INVÁLIDO DETECTADO: '{estado}'")
+    
+    conn.close()
+else:
+    print("  ❌ Banco NÃO encontrado!")
+
+print("=" * 60)
+print("FIM DO DIAGNÓSTICO")
+print("=" * 60)
+
+# ============================================
+# CONTINUAÇÃO DO SEU CÓDIGO ORIGINAL
+# ============================================
+
+# Remove as linhas antigas que tentavam recriar o banco
+# if os.path.exists("torre_controle_final.db"):  <-- COMENTE OU REMOVA ISSO
+#     try:
+#         os.remove("torre_controle_final.db")
+#     except Exception:
+#         pass
+
+# try:  <-- COMENTE OU REMOVA ISSO
+#     import gerar_banco
+#     gerar_banco.criar_e_povoar_banco()
+# except Exception:
+#     pass
+
+# Configuração da página executiva profissional
+st.set_page_config(page_title="Torre de Controle Logística", layout="wide")
 
 # ========== DIAGNÓSTICO INICIAL ==========
 print("=== DIAGNÓSTICO INICIAL ===")
