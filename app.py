@@ -4,120 +4,224 @@ import sqlite3
 import plotly.express as px
 import os
 from datetime import datetime
-import subprocess
-import sys
 
 # ============================================
-# CONFIGURAÇÃO INICIAL
+# CONFIGURAÇÃO
 # ============================================
 st.set_page_config(page_title="Torre de Controle Logística", layout="wide")
 
-# ============================================
-# RECRIA O BANCO DE DADOS (SE NECESSÁRIO)
-# ============================================
-db_path = "torre_controle_final.db"
-
-# Se o banco não existir, executa o gerador
-if not os.path.exists(db_path):
-    print("🔄 Banco não encontrado. Recriando...")
-    try:
-        import gerar_banco
-        gerar_banco.criar_e_povoar_banco()
-        print("✅ Banco recriado com sucesso!")
-    except Exception as e:
-        print(f"❌ Erro ao recriar banco: {e}")
-        # Fallback: executa via subprocess
-        try:
-            subprocess.run([sys.executable, "gerar_banco.py"], check=True, capture_output=False)
-            print("✅ Banco recriado via subprocess!")
-        except Exception as e2:
-            print(f"❌ Erro no fallback: {e2}")
-            st.error("❌ Não foi possível criar o banco de dados. Verifique os logs.")
-            st.stop()
-
-# ============================================
-# FUNÇÃO PARA CARREGAR DADOS - SEM CACHE
-# ============================================
-def carregar_dados():
-    """Carrega os dados diretamente do banco"""
-    
-    if not os.path.exists(db_path):
-        st.error("❌ Banco de dados não encontrado!")
-        return pd.DataFrame()
-    
-    try:
-        conexao = sqlite3.connect(db_path)
-        query = """
-            SELECT 
-                f.id_entrega,
-                f.numero_nota_fiscal,
-                t.nome_transportadora,
-                c.nome_cliente,
-                c.cidade,
-                c.estado,
-                c.regiao,
-                f.segmento_operacao,
-                f.data_emissao,
-                f.data_previsao_entrega,
-                f.data_entrega_real,
-                f.valor_nota_fiscal,
-                f.peso_kg,
-                f.custo_frete_tabela,
-                f.custo_frete_cobrado,
-                f.status_entrega,
-                f.motivo_gargalo
-            FROM f_entregas f
-            JOIN d_transportadoras t ON f.id_transportadora = t.id_transportadora
-            JOIN d_clientes c ON f.id_cliente = c.id_cliente
-        """
-        df = pd.read_sql_query(query, conexao)
-        conexao.close()
-        
-        if df.empty:
-            st.warning("⚠️ O banco está vazio. Execute o gerador de dados.")
-            return df
-        
-        # Converte data
-        df['data_emissao'] = pd.to_datetime(df['data_emissao'])
-        
-        # ===== FILTRO DE SEGURANÇA =====
-        # Remove QUALQUER coisa que não seja estado brasileiro
-        estados_validos = ['AM', 'BA', 'CE', 'ES', 'GO', 'MA', 'MG', 'MT', 'PA', 'PE', 'PR', 'RJ', 'RS', 'SC', 'SP']
-        df = df[df['estado'].isin(estados_validos)]
-        
-        print(f"✅ Dados carregados: {len(df)} registros")
-        print(f"📍 Estados únicos: {sorted(df['estado'].unique())}")
-        
-        return df
-        
-    except Exception as e:
-        st.error(f"❌ Erro ao carregar dados: {e}")
-        return pd.DataFrame()
-
-# ============================================
-# TÍTULO
-# ============================================
 st.markdown("<h1 style='text-align: center;'>🛸 Torre de Performance Logística</h1>", unsafe_allow_html=True)
 st.markdown("<p style='text-align: center; color: gray;'>Solução Gerencial: Auditoria Automática de Fretes, Análise de SLA e Controle de Metas</p>", unsafe_allow_html=True)
 st.markdown("---")
 
 # ============================================
-# CARREGA OS DADOS
+# CRIA O BANCO DE DADOS DIRETAMENTE NO APP
 # ============================================
+DB_PATH = "torre_controle.db"
+
+def criar_banco():
+    """Cria o banco de dados do zero"""
+    
+    # Remove banco antigo se existir
+    if os.path.exists(DB_PATH):
+        os.remove(DB_PATH)
+    
+    conexao = sqlite3.connect(DB_PATH)
+    cursor = conexao.cursor()
+
+    # Cria tabelas
+    cursor.execute("DROP TABLE IF EXISTS f_entregas;")
+    cursor.execute("DROP TABLE IF EXISTS d_transportadoras;")
+    cursor.execute("DROP TABLE IF EXISTS d_clientes;")
+
+    cursor.execute("""
+        CREATE TABLE d_transportadoras (
+            id_transportadora INTEGER PRIMARY KEY AUTOINCREMENT,
+            nome_transportadora TEXT NOT NULL,
+            tipo_transporte TEXT
+        );
+    """)
+
+    cursor.execute("""
+        CREATE TABLE d_clientes (
+            id_cliente INTEGER PRIMARY KEY AUTOINCREMENT,
+            nome_cliente TEXT NOT NULL,
+            cidade TEXT,
+            estado TEXT,
+            regiao TEXT
+        );
+    """)
+
+    cursor.execute("""
+        CREATE TABLE f_entregas (
+            id_entrega INTEGER PRIMARY KEY AUTOINCREMENT,
+            numero_nota_fiscal TEXT NOT NULL,
+            id_transportadora INTEGER,
+            id_cliente INTEGER,
+            segmento_operacao TEXT,
+            data_emissao TEXT,
+            data_previsao_entrega TEXT,
+            data_entrega_real TEXT,
+            valor_nota_fiscal REAL,
+            peso_kg REAL,
+            custo_frete_tabela REAL,
+            custo_frete_cobrado REAL,
+            status_entrega TEXT,
+            motivo_gargalo TEXT,
+            FOREIGN KEY (id_transportadora) REFERENCES d_transportadoras(id_transportadora),
+            FOREIGN KEY (id_cliente) REFERENCES d_clientes(id_cliente)
+        );
+    """)
+
+    # Transportadoras
+    transportadoras = [
+        ("Alfa Transportes", "Lotação"),
+        ("Beta Logística", "Fracionado"),
+        ("Gama Express", "Fracionado"),
+        ("Delta Cargas", "Lotação"),
+        ("Omega Trans", "Refrigerado"),
+        ("Sigma Fretes", "Granel"),
+        ("Zeta Distribuidores", "Fracionado"),
+        ("Theta Operador Logístico", "Lotação")
+    ]
+    cursor.executemany("INSERT INTO d_transportadoras (nome_transportadora, tipo_transporte) VALUES (?, ?);", transportadoras)
+
+    # Clientes - 15 estados
+    clientes = [
+        ("CD São Paulo", "São Paulo", "SP", "Sudeste"),
+        ("Filial Rio de Janeiro", "Rio de Janeiro", "RJ", "Sudeste"),
+        ("Atacado Belo Horizonte", "Belo Horizonte", "MG", "Sudeste"),
+        ("Operador Vitória", "Vitória", "ES", "Sudeste"),
+        ("Cooperativa Curitiba", "Curitiba", "PR", "Sul"),
+        ("Logística Joinville", "Joinville", "SC", "Sul"),
+        ("Terminal Porto Alegre", "Porto Alegre", "RS", "Sul"),
+        ("Distribuidora Salvador", "Salvador", "BA", "Nordeste"),
+        ("Hub Fortaleza", "Fortaleza", "CE", "Nordeste"),
+        ("Polo Recife", "Recife", "PE", "Nordeste"),
+        ("Logística São Luís", "São Luís", "MA", "Nordeste"),
+        ("Agro Goiânia", "Goiânia", "GO", "Centro-Oeste"),
+        ("Plataforma Cuiabá", "Cuiabá", "MT", "Centro-Oeste"),
+        ("Norte Belém", "Belém", "PA", "Norte"),
+        ("Polo Manaus", "Manaus", "AM", "Norte")
+    ]
+    cursor.executemany("INSERT INTO d_clientes (nome_cliente, cidade, estado, regiao) VALUES (?, ?, ?, ?);", clientes)
+
+    # Gera 100 entregas
+    import random
+    from datetime import datetime, timedelta
+    
+    segmentos = ["E-Commerce", "Varejo", "Indústria", "Agronegócio", "Medicamentos", "Alimentos"]
+    status_opcoes = ["Entregue No Prazo", "Atrasado", "Retido na Barreira Fiscal", "Extraviado"]
+    gargalos_opcoes = {
+        "Entregue No Prazo": "Nenhum Operacional",
+        "Atrasado": "Atraso no Carregamento",
+        "Retido na Barreira Fiscal": "Fiscalização / SEFAZ",
+        "Extraviado": "Sinistro / Roubo de Carga"
+    }
+
+    random.seed(42)
+    data_base = datetime(2026, 6, 1)
+
+    for i in range(1, 101):
+        nf = f"NF-2026-{i:03d}"
+        id_transp = random.randint(1, 8)
+        id_clie = random.randint(1, 15)
+        seg = random.choice(segmentos)
+        
+        d_emissao = data_base + timedelta(days=random.randint(0, 15))
+        d_previsao = d_emissao + timedelta(days=random.randint(3, 7))
+        
+        sorteio_status = random.choices(status_opcoes, weights=[0.68, 0.18, 0.10, 0.04], k=1)[0]
+        gargalo = gargalos_opcoes[sorteio_status]
+        
+        if sorteio_status == "Entregue No Prazo":
+            d_entrega = d_previsao - timedelta(days=random.randint(0, 2))
+            data_entrega_str = d_entrega.strftime('%Y-%m-%d')
+        elif sorteio_status == "Extraviado":
+            data_entrega_str = "Não Entregue"
+        else:
+            d_entrega = d_previsao + timedelta(days=random.randint(2, 6))
+            data_entrega_str = d_entrega.strftime('%Y-%m-%d')
+
+        valor_nf = round(random.uniform(5000, 120000), 2)
+        peso = round(random.uniform(50, 4000), 2)
+        
+        frete_tabela = round(valor_nf * random.uniform(0.02, 0.05), 2)
+        if random.random() > 0.75:
+            frete_cobrado = round(frete_tabela + random.uniform(150, 1200), 2)
+        else:
+            frete_cobrado = frete_tabela
+
+        cursor.execute("""
+            INSERT INTO f_entregas (
+                numero_nota_fiscal, id_transportadora, id_cliente, segmento_operacao,
+                data_emissao, data_previsao_entrega, data_entrega_real, valor_nota_fiscal,
+                peso_kg, custo_frete_tabela, custo_frete_cobrado, status_entrega, motivo_gargalo
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+        """, (nf, id_transp, id_clie, seg, 
+              d_emissao.strftime('%Y-%m-%d'), 
+              d_previsao.strftime('%Y-%m-%d'), 
+              data_entrega_str, 
+              valor_nf, peso, frete_tabela, frete_cobrado, 
+              sorteio_status, gargalo))
+
+    conexao.commit()
+    conexao.close()
+    print("✅ Banco criado com sucesso!")
+
+# ============================================
+# CRIA O BANCO E CARREGA OS DADOS
+# ============================================
+
+# Cria o banco (se não existir)
+if not os.path.exists(DB_PATH):
+    with st.spinner("Criando banco de dados..."):
+        criar_banco()
+
+# Carrega os dados
+@st.cache_data(ttl=300)  # Cache por 5 minutos
+def carregar_dados():
+    conexao = sqlite3.connect(DB_PATH)
+    query = """
+        SELECT 
+            f.id_entrega,
+            f.numero_nota_fiscal,
+            t.nome_transportadora,
+            c.nome_cliente,
+            c.cidade,
+            c.estado,
+            c.regiao,
+            f.segmento_operacao,
+            f.data_emissao,
+            f.data_previsao_entrega,
+            f.data_entrega_real,
+            f.valor_nota_fiscal,
+            f.peso_kg,
+            f.custo_frete_tabela,
+            f.custo_frete_cobrado,
+            f.status_entrega,
+            f.motivo_gargalo
+        FROM f_entregas f
+        JOIN d_transportadoras t ON f.id_transportadora = t.id_transportadora
+        JOIN d_clientes c ON f.id_cliente = c.id_cliente
+    """
+    df = pd.read_sql_query(query, conexao)
+    conexao.close()
+    df['data_emissao'] = pd.to_datetime(df['data_emissao'])
+    return df
+
 df_original = carregar_dados()
 
-# Verifica se carregou corretamente
+# Verifica
 if df_original.empty:
-    st.error("⚠️ Nenhum dado disponível. Verifique o banco de dados.")
-    st.info("💡 O banco será recriado automaticamente na próxima execução.")
+    st.error("❌ Nenhum dado encontrado!")
     st.stop()
 
 # ============================================
-# PAINEL DE FILTROS
+# FILTROS
 # ============================================
 st.sidebar.header("🎯 Painel de Filtros Cruzados")
 
-# Período
 data_minima = df_original["data_emissao"].min().date()
 data_maxima = df_original["data_emissao"].max().date()
 
@@ -126,34 +230,25 @@ periodo_selecionado = st.sidebar.date_input(
     "Selecione o intervalo de análise:",
     value=(data_minima, data_maxima),
     min_value=data_minima,
-    max_value=data_maxima,
-    key="sb_datas"
+    max_value=data_maxima
 )
 
 st.sidebar.markdown("---")
 
-# ===== FILTROS =====
-# Segmentos
 lista_segmentos = ["Todos"] + sorted(df_original["segmento_operacao"].unique())
-segmento_selecionado = st.sidebar.selectbox("Selecione o Segmento:", lista_segmentos, key="sb_segmento")
+segmento_selecionado = st.sidebar.selectbox("Selecione o Segmento:", lista_segmentos)
 
-# Regiões
 lista_regioes = ["Todos"] + sorted(df_original["regiao"].unique())
-regiao_selecionada = st.sidebar.selectbox("Selecione a Região Geográfica:", lista_regioes, key="sb_regiao")
+regiao_selecionada = st.sidebar.selectbox("Selecione a Região Geográfica:", lista_regioes)
 
-# Estados - apenas siglas válidas
-estados_validos = ['AM', 'BA', 'CE', 'ES', 'GO', 'MA', 'MG', 'MT', 'PA', 'PE', 'PR', 'RJ', 'RS', 'SC', 'SP']
-estados_existentes = [e for e in df_original["estado"].unique() if e in estados_validos]
-lista_estados = ["Todos"] + sorted(estados_existentes)
-estado_selecionado = st.sidebar.selectbox("Selecione o Estado de Destino:", lista_estados, key="sb_estado")
+lista_estados = ["Todos"] + sorted(df_original["estado"].unique())
+estado_selecionado = st.sidebar.selectbox("Selecione o Estado de Destino:", lista_estados)
 
-# Status
 lista_status = ["Todos"] + sorted(df_original["status_entrega"].unique())
-status_selecionado = st.sidebar.selectbox("Status da Entrega:", lista_status, key="sb_status")
+status_selecionado = st.sidebar.selectbox("Status da Entrega:", lista_status)
 
-# Transportadoras
 lista_transportadoras = ["Todos"] + sorted(df_original["nome_transportadora"].unique())
-transportadora_selecionada = st.sidebar.selectbox("Transportadora:", lista_transportadoras, key="sb_transportadora")
+transportadora_selecionada = st.sidebar.selectbox("Transportadora:", lista_transportadoras)
 
 # ============================================
 # APLICA FILTROS
@@ -216,7 +311,6 @@ with col4:
 
 st.markdown("---")
 
-# Classificação
 if taxa_otif >= 95.0:
     st.success(f"🏅 **Classificação de Mercado - Zona de Excelência:** O nível de serviço atual está em **{taxa_otif:.1f}%**.")
 elif taxa_otif >= 85.0:
@@ -236,7 +330,7 @@ with graf1:
     df_estado = df_filtrado.groupby(['estado', 'status_entrega']).size().reset_index(name='quantidade')
     fig_estado = px.bar(
         df_estado, x='estado', y='quantidade', color='status_entrega',
-        title="Ocorrências Logísticas por Estado de Destino (15 Estados)",
+        title="Ocorrências Logísticas por Estado de Destino",
         labels={'estado': 'Estado', 'quantidade': 'Qtd Notas Fiscais'},
         barmode='group'
     )
@@ -250,9 +344,6 @@ with graf2:
 
 st.markdown("---")
 
-# ============================================
-# GRÁFICOS 3 e 4
-# ============================================
 st.subheader("🚛 Performance de Parceiros e Auditoria de Custos")
 graf3, graf4 = st.columns(2)
 
@@ -288,12 +379,12 @@ colunas_exibicao = [
     "regiao", "segmento_operacao", "data_emissao", "status_entrega", 
     "valor_nota_fiscal", "custo_frete_cobrado", "motivo_gargalo"
 ]
-st.dataframe(df_filtrado[colunas_exibicao], use_container_width=True, key="st_df_final")
+st.dataframe(df_filtrado[colunas_exibicao], use_container_width=True)
 
 # ============================================
-# BOTÃO DE RECARGA
+# BOTÃO RECARREGAR
 # ============================================
 st.sidebar.markdown("---")
-if st.sidebar.button("🔄 Recarregar Dados", type="primary"):
+if st.sidebar.button("🔄 Recarregar Dados"):
     st.cache_data.clear()
     st.rerun()
