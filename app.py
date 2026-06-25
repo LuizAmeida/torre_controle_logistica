@@ -6,12 +6,49 @@ import os
 from datetime import datetime
 
 # ============================================
-# CONFIGURAÇÃO DA PÁGINA
+# CONFIGURAÇÃO DA PÁGINA (SEMPRE PRIMEIRO)
 # ============================================
-st.set_page_config(page_title="Torre de Controle Logística", layout="wide")
+st.set_page_config(
+    page_title="Torre de Controle Logística",
+    layout="wide",
+    page_icon="🛸"
+)
 
 # ============================================
-# FORÇA A RECRIAÇÃO DO BANCO (COMO ANTES)
+# DESATIVA TRADUÇÃO AUTOMÁTICA DO NAVEGADOR
+# ============================================
+st.markdown("""
+    <meta name="google" content="notranslate">
+    <meta name="google-translate-custom" content="notranslate">
+    <meta http-equiv="Content-Language" content="pt-BR">
+    <style>
+        /* Remove o popup de tradução do Chrome */
+        .goog-te-banner-frame { display: none !important; }
+        #goog-gt-tt { display: none !important; }
+        .goog-tooltip { display: none !important; }
+        .goog-text-highlight { background-color: transparent !important; border: none !important; }
+        /* Remove o ícone de tradução */
+        .goog-te-gadget-icon { display: none !important; }
+        .goog-te-gadget-simple { display: none !important; }
+    </style>
+    <script>
+        // Força a não tradução
+        document.addEventListener('DOMContentLoaded', function() {
+            document.documentElement.lang = 'pt-BR';
+            // Remove o meta de tradução se existir
+            const meta = document.querySelector('meta[name="google"]');
+            if (meta) meta.remove();
+            // Adiciona o meta de não tradução
+            const newMeta = document.createElement('meta');
+            newMeta.name = 'google';
+            newMeta.content = 'notranslate';
+            document.head.appendChild(newMeta);
+        });
+    </script>
+""", unsafe_allow_html=True)
+
+# ============================================
+# FORÇA A RECRIAÇÃO DO BANCO
 # ============================================
 db_path = "torre_controle_final.db"
 
