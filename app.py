@@ -135,7 +135,7 @@ with col_neg:
 st.markdown("---")
 
 
-# --- CONSTRUÇÃO/MODIFICAÇÃO: Bloco Gráfico Ajustado (Substituindo a Pizza Poluída) ---
+# --- CONSTRUÇÃO/MODIFICAÇÃO: Bloco Gráfico Ajustado ---
 st.subheader("📈 Volumetria e Distribuição de SLAs")
 graf1, graf2 = st.columns(2)
 
@@ -218,31 +218,29 @@ with graf4:
 st.markdown("---")
 
 
-# --- CONSTRUÇÃO/MODIFICAÇÃO: Ajuste de Container Fixo para Prevenir Erros de Front-end ---
+# --- CONSTRUÇÃO/MODIFICAÇÃO: Diagnóstico Automatizado (Removida a Chave Conflitante) ---
 st.subheader("🧠 Diagnóstico Automatizado de Gargalos Logísticos")
 
-# Usando st.container para blindar a renderização do React contra o bug de 'removeChild'
-container_diagnostico = st.container()
+df_erros = df_filtrado[df_filtrado["motivo_gargalo"] != "Nenhum Operacional"]
+df_erros = df_erros[df_erros["motivo_gargalo"] != "Carga em Fluxo Normal"]
 
-with container_diagnostico:
-    df_erros = df_filtrado[df_filtrado["motivo_gargalo"] != "Nenhum Operacional"]
-    df_erros = df_erros[df_erros["motivo_gargalo"] != "Carga em Fluxo Normal"]
-
-    if not df_erros.empty:
-        causa_raiz = df_erros["motivo_gargalo"].value_counts().idxmax()
-        frequencia_causa = df_erros["motivo_gargalo"].value_counts().max()
-        
-        st.info(f"""
-            **Análise de Causa Raiz:** Identificamos que o principal gargalo operacional sob o filtro selecionado é **"{causa_raiz}"**, ocorrendo em **{frequencia_causa}** incidentes afetando o nível de serviço do período. 
-            *Recomendação Operacional: Revisar o processo de agendamento ou acionar a mesa de operações para mitigar novos atrasos desse tipo.*
-        """, key="msg_info_gargalo")
-    else:
-        st.success("🎉 **Eficiência Total:** Nenhum desvio de fluxo ou gargalo operacional foi registrado sob as condições dos filtros atuais.", key="msg_success_gargalo")
+if not df_erros.empty:
+    causa_raiz = df_erros["motivo_gargalo"].value_counts().idxmax()
+    frequencia_causa = df_erros["motivo_gargalo"].value_counts().max()
+    
+    # Removido o parâmetro key daqui para evitar o conflito no SessionState
+    st.info(f"""
+        **Análise de Causa Raiz:** Identificamos que o principal gargalo operacional sob o filtro selecionado é **"{causa_raiz}"**, ocorrendo em **{frequencia_causa}** incidentes afetando o nível de serviço do período. 
+        *Recomendação Operacional: Revisar o processo de agendamento ou acionar a mesa de operações para mitigar novos atrasos desse tipo.*
+    """)
+else:
+    # Removido o parâmetro key daqui para evitar o conflito no SessionState
+    st.success("🎉 **Eficiência Total:** Nenhum desvio de fluxo ou gargalo operacional foi registrado sob as condições dos filtros atuais.")
 
 st.markdown("---")
 
 
-# --- CONSTRUÇÃO/MODIFICAÇÃO: Tabela Blindada com Chave de Identificação Estática ---
+# --- CONSTRUÇÃO/MODIFICAÇÃO: Tabela de Dados Operacionais ---
 st.subheader("📋 Detalhamento das Notas Fiscais e Ocorrências")
 
 colunas_exibicao = [
@@ -251,5 +249,5 @@ colunas_exibicao = [
     "valor_nota_fiscal", "custo_frete_cobrado", "motivo_gargalo"
 ]
 
-# Adicionada a key st_df_final para forçar o Streamlit a reconstruir o elemento sem travar o DOM do navegador
+# Mantida uma única chave de controle exclusiva para o elemento da tabela
 st.dataframe(df_filtrado[colunas_exibicao], use_container_width=True, key="st_df_final")
